@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ACAG Batch Data Search</title>
+<title>ACAG Member Search</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 
 <style>
 *{
@@ -17,158 +17,167 @@
 }
 
 :root{
-    --bg:#fafafa;
-    --surface:#ffffff;
-    --surface-elevated:#f5f5f5;
-    --primary:#0066ff;
-    --primary-hover:#0052cc;
-    --text:#0a0a0a;
-    --text-light:#737373;
-    --text-lighter:#a3a3a3;
-    --border:#e5e5e5;
-    --border-dark:#d4d4d4;
-    --success:#16a34a;
-    --error:#dc2626;
-    --shadow-sm:0 1px 2px rgba(0,0,0,0.04);
-    --shadow:0 4px 12px rgba(0,0,0,0.08);
-    --shadow-lg:0 12px 32px rgba(0,0,0,0.12);
-    --radius:12px;
-    --radius-lg:16px;
-    --transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --primary:#3b82f6;
+    --primary-dark:#2563eb;
+    --bg:#f8fafc;
+    --card:#ffffff;
+    --text:#0f172a;
+    --text-light:#64748b;
+    --border:#e2e8f0;
+    --success:#10b981;
+    --error:#ef4444;
 }
 
 body{
-    font-family:'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family:'Inter', sans-serif;
     background:var(--bg);
     color:var(--text);
     line-height:1.6;
     min-height:100vh;
-    -webkit-font-smoothing:antialiased;
-    -moz-osx-font-smoothing:grayscale;
 }
 
-/* Container */
 .container{
-    max-width:1280px;
+    max-width:1200px;
     margin:0 auto;
-    padding:32px 24px;
+    padding:40px 20px;
 }
 
 /* Header */
 .header{
     text-align:center;
-    margin-bottom:48px;
-    animation:fadeIn 0.6s ease-out;
+    margin-bottom:50px;
+    opacity:0;
+    animation:fadeIn 0.8s ease forwards;
 }
 
 @keyframes fadeIn{
-    from{opacity:0; transform:translateY(-20px);}
-    to{opacity:1; transform:translateY(0);}
+    to{opacity:1;}
 }
 
 .logo{
-    display:inline-flex;
+    width:80px;
+    height:80px;
+    margin:0 auto 20px;
+    background:linear-gradient(135deg, var(--primary), #8b5cf6);
+    border-radius:20px;
+    display:flex;
     align-items:center;
     justify-content:center;
-    width:64px;
-    height:64px;
-    background:linear-gradient(135deg, var(--primary), #00b8d4);
-    border-radius:16px;
-    margin-bottom:20px;
-    box-shadow:var(--shadow-lg);
-    animation:logoFloat 3s ease-in-out infinite;
+    box-shadow:0 10px 30px rgba(59,130,246,0.3);
+    animation:float 3s ease-in-out infinite;
 }
 
-@keyframes logoFloat{
+@keyframes float{
     0%, 100%{transform:translateY(0);}
-    50%{transform:translateY(-8px);}
+    50%{transform:translateY(-10px);}
 }
 
 .logo svg{
-    width:32px;
-    height:32px;
+    width:40px;
+    height:40px;
     stroke:white;
     stroke-width:2.5;
 }
 
-.header h1{
+h1{
     font-size:2.5rem;
-    font-weight:700;
-    color:var(--text);
-    margin-bottom:8px;
-    letter-spacing:-0.02em;
+    font-weight:800;
+    margin-bottom:10px;
+    background:linear-gradient(135deg, var(--primary), #8b5cf6);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
 }
 
-.header p{
-    font-size:1.125rem;
+.subtitle{
     color:var(--text-light);
-    font-weight:500;
+    font-size:1.1rem;
 }
 
-/* Status Bar */
-.status-bar{
-    background:var(--surface);
-    border:1px solid var(--border);
-    border-radius:var(--radius-lg);
-    padding:20px 28px;
-    margin-bottom:32px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    box-shadow:var(--shadow-sm);
-    animation:slideUp 0.6s ease-out 0.1s both;
+/* Card */
+.card{
+    background:var(--card);
+    border-radius:20px;
+    padding:30px;
+    box-shadow:0 4px 20px rgba(0,0,0,0.08);
+    margin-bottom:30px;
+    opacity:0;
+    animation:slideUp 0.8s ease forwards;
 }
 
 @keyframes slideUp{
-    from{opacity:0; transform:translateY(20px);}
-    to{opacity:1; transform:translateY(0);}
+    from{
+        opacity:0;
+        transform:translateY(30px);
+    }
+    to{
+        opacity:1;
+        transform:translateY(0);
+    }
+}
+
+.card:nth-child(2){animation-delay:0.1s;}
+.card:nth-child(3){animation-delay:0.2s;}
+.card:nth-child(4){animation-delay:0.3s;}
+
+/* Status */
+.status{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:20px;
 }
 
 .status-info{
     display:flex;
     align-items:center;
-    gap:16px;
+    gap:15px;
 }
 
 .status-icon{
-    width:48px;
-    height:48px;
-    background:linear-gradient(135deg, #f0f9ff, #e0f2fe);
-    border-radius:12px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:24px;
+    font-size:40px;
+    animation:bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce{
+    0%, 100%{transform:scale(1);}
+    50%{transform:scale(1.1);}
 }
 
 .status-text h3{
     font-size:1rem;
     font-weight:600;
-    color:var(--text);
-    margin-bottom:4px;
+    margin-bottom:5px;
 }
 
 .status-text p{
-    font-size:0.875rem;
-    font-family:'IBM Plex Mono', monospace;
-    color:var(--text-lighter);
+    font-size:0.9rem;
+    color:var(--text-light);
+    font-family:'JetBrains Mono', monospace;
 }
 
-.status-badge{
+.badge{
     padding:8px 16px;
-    background:#dcfce7;
-    color:var(--success);
     border-radius:100px;
-    font-size:0.875rem;
+    font-size:0.85rem;
     font-weight:600;
     display:flex;
     align-items:center;
     gap:8px;
 }
 
-.status-badge.loading{
+.badge.loading{
     background:#dbeafe;
     color:var(--primary);
+}
+
+.badge.success{
+    background:#d1fae5;
+    color:var(--success);
+}
+
+.badge.error{
+    background:#fee2e2;
+    color:var(--error);
 }
 
 .spinner{
@@ -184,95 +193,72 @@ body{
     to{transform:rotate(360deg);}
 }
 
-/* Search Section */
-.search-section{
-    background:var(--surface);
-    border:1px solid var(--border);
-    border-radius:var(--radius-lg);
-    padding:32px;
-    margin-bottom:32px;
-    box-shadow:var(--shadow-sm);
-    animation:slideUp 0.6s ease-out 0.2s both;
-}
-
-/* Search Form */
-.search-form{
+/* Search */
+.search-box{
     display:flex;
     gap:12px;
 }
 
-.search-input-wrapper{
+.input-group{
     flex:1;
 }
 
-.search-label{
+label{
     display:block;
-    font-size:0.875rem;
+    font-size:0.9rem;
     font-weight:600;
-    color:var(--text);
     margin-bottom:8px;
+    color:var(--text);
 }
 
-.search-input{
+input{
     width:100%;
     padding:14px 18px;
     font-size:1rem;
-    font-family:'IBM Plex Mono', monospace;
-    font-weight:500;
-    background:var(--surface-elevated);
+    font-family:'JetBrains Mono', monospace;
+    background:var(--bg);
     border:2px solid var(--border);
-    border-radius:var(--radius);
+    border-radius:12px;
     color:var(--text);
-    transition:var(--transition);
+    transition:all 0.3s ease;
 }
 
-.search-input:focus{
+input:focus{
     outline:none;
     border-color:var(--primary);
-    background:var(--surface);
-    box-shadow:0 0 0 4px rgba(0,102,255,0.08);
+    box-shadow:0 0 0 4px rgba(59,130,246,0.1);
 }
 
-.search-input::placeholder{
-    color:var(--text-lighter);
-}
-
-.search-btn{
+button{
     align-self:flex-end;
-    padding:14px 32px;
+    padding:14px 36px;
     font-size:1rem;
     font-weight:600;
     background:var(--primary);
     color:white;
     border:none;
-    border-radius:var(--radius);
+    border-radius:12px;
     cursor:pointer;
-    transition:var(--transition);
+    transition:all 0.3s ease;
     font-family:inherit;
-    box-shadow:var(--shadow);
-    white-space:nowrap;
 }
 
-.search-btn:hover{
-    background:var(--primary-hover);
+button:hover{
+    background:var(--primary-dark);
     transform:translateY(-2px);
-    box-shadow:var(--shadow-lg);
+    box-shadow:0 8px 20px rgba(59,130,246,0.3);
 }
 
-.search-btn:active{
+button:active{
     transform:translateY(0);
 }
 
-.search-btn.searching{
+button.searching{
     opacity:0.7;
-    cursor:not-allowed;
+    pointer-events:none;
 }
 
-/* Results Section */
-.results-section{
-    animation:slideUp 0.6s ease-out 0.3s both;
-}
-
+/* Results */
 .results-header{
     display:flex;
     justify-content:space-between;
@@ -280,32 +266,21 @@ body{
     margin-bottom:20px;
 }
 
-.results-title{
+.results-header h2{
     font-size:1.5rem;
     font-weight:700;
-    color:var(--text);
 }
 
-.results-count{
-    font-size:0.9375rem;
-    font-weight:600;
+.count{
     color:var(--text-light);
-    padding:8px 16px;
-    background:var(--surface-elevated);
-    border-radius:100px;
+    font-weight:600;
 }
 
 /* Table */
-.table-container{
-    background:var(--surface);
-    border:1px solid var(--border);
-    border-radius:var(--radius-lg);
-    overflow:hidden;
-    box-shadow:var(--shadow-sm);
-}
-
 .table-wrapper{
     overflow-x:auto;
+    border-radius:12px;
+    border:1px solid var(--border);
 }
 
 table{
@@ -314,147 +289,105 @@ table{
 }
 
 thead{
-    background:var(--surface-elevated);
-    border-bottom:1px solid var(--border);
+    background:var(--bg);
 }
 
 th{
-    padding:16px 20px;
+    padding:16px;
     text-align:left;
-    font-size:0.875rem;
+    font-size:0.85rem;
     font-weight:700;
-    color:var(--text);
+    color:var(--text-light);
     text-transform:uppercase;
     letter-spacing:0.5px;
-    white-space:nowrap;
+    border-bottom:2px solid var(--border);
 }
 
 tbody tr{
     border-bottom:1px solid var(--border);
-    transition:background 0.15s ease;
-    animation:fadeInRow 0.3s ease-out backwards;
+    transition:background 0.2s ease;
+    opacity:0;
+    animation:fadeInRow 0.4s ease forwards;
 }
 
 @keyframes fadeInRow{
-    from{opacity:0; transform:translateX(-10px);}
-    to{opacity:1; transform:translateX(0);}
+    to{opacity:1;}
 }
 
 tbody tr:hover{
-    background:var(--surface-elevated);
-}
-
-tbody tr:last-child{
-    border-bottom:none;
+    background:var(--bg);
 }
 
 td{
-    padding:16px 20px;
-    font-size:0.9375rem;
-    color:var(--text);
+    padding:16px;
+    font-size:0.95rem;
 }
 
 td:first-child{
-    font-family:'IBM Plex Mono', monospace;
+    font-family:'JetBrains Mono', monospace;
     font-weight:600;
     color:var(--primary);
 }
 
-/* State Styles */
-.empty-state,
-.loading-state,
-.error-state{
-    padding:64px 32px;
+td:nth-child(2){
+    font-family:'JetBrains Mono', monospace;
+    color:var(--text);
+}
+
+/* States */
+.state{
+    padding:80px 40px;
     text-align:center;
 }
 
 .state-icon{
-    width:64px;
-    height:64px;
-    margin:0 auto 20px;
-    background:var(--surface-elevated);
-    border-radius:50%;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:32px;
+    font-size:60px;
+    margin-bottom:20px;
+    display:inline-block;
+    animation:bounce 2s ease-in-out infinite;
 }
 
-.error-state .state-icon{
-    background:#fee2e2;
-    color:var(--error);
-}
-
-.loading-spinner{
-    width:48px;
-    height:48px;
-    margin:0 auto 20px;
-    border:4px solid var(--border);
-    border-top-color:var(--primary);
-    border-radius:50%;
-    animation:spin 0.8s linear infinite;
-}
-
-.state-title{
-    font-size:1.25rem;
+.state h3{
+    font-size:1.3rem;
     font-weight:700;
-    color:var(--text);
     margin-bottom:8px;
 }
 
-.state-text{
-    font-size:1rem;
+.state p{
     color:var(--text-light);
+}
+
+.loading-icon{
+    width:60px;
+    height:60px;
+    border:4px solid var(--border);
+    border-top-color:var(--primary);
+    border-radius:50%;
+    margin:0 auto 20px;
+    animation:spin 0.8s linear infinite;
 }
 
 /* Responsive */
 @media(max-width:768px){
-    .container{
-        padding:20px 16px;
-    }
+    h1{font-size:2rem;}
     
-    .header h1{
-        font-size:2rem;
-    }
-    
-    .status-bar{
+    .status{
         flex-direction:column;
-        gap:16px;
         text-align:center;
     }
     
-    .search-form{
+    .search-box{
         flex-direction:column;
     }
     
-    .search-btn{
+    button{
         width:100%;
     }
     
     .results-header{
         flex-direction:column;
         align-items:flex-start;
-        gap:12px;
-    }
-    
-    table{
-        font-size:0.875rem;
-    }
-    
-    th, td{
-        padding:12px 16px;
-    }
-}
-
-/* Print Styles */
-@media print{
-    body{
-        background:white;
-    }
-    
-    .search-section,
-    .status-bar{
-        display:none;
+        gap:10px;
     }
 }
 </style>
@@ -471,148 +404,125 @@ td:first-child{
         </svg>
     </div>
     <h1>ACAG Member Search</h1>
-    <p>Search by CNIC Number</p>
+    <p class="subtitle">Search by CNIC Number</p>
 </div>
 
-<!-- Status Bar -->
-<div class="status-bar">
-    <div class="status-info">
-        <div class="status-icon">📊</div>
-        <div class="status-text">
-            <h3>Database Connection</h3>
-            <p id="sheetInfo">Connecting...</p>
+<!-- Status Card -->
+<div class="card">
+    <div class="status">
+        <div class="status-info">
+            <div class="status-icon">📊</div>
+            <div class="status-text">
+                <h3>Database Status</h3>
+                <p id="statusInfo">Connecting...</p>
+            </div>
+        </div>
+        <div class="badge loading" id="statusBadge">
+            <span class="spinner"></span>
+            <span>Loading</span>
         </div>
     </div>
-    <div class="status-badge loading" id="statusBadge">
-        <span class="spinner"></span>
-        <span>Loading</span>
-    </div>
 </div>
 
-<!-- Search Section -->
-<div class="search-section">
-    <div class="search-form">
-        <div class="search-input-wrapper">
-            <label class="search-label">Enter CNIC Number</label>
+<!-- Search Card -->
+<div class="card">
+    <div class="search-box">
+        <div class="input-group">
+            <label>Enter CNIC Number</label>
             <input 
                 type="text" 
-                id="searchInput" 
-                class="search-input"
+                id="cnicInput"
                 placeholder="XXXXX-XXXXXXX-X"
                 maxlength="15"
                 autocomplete="off"
             >
         </div>
-        <button class="search-btn" id="searchBtn" onclick="searchData()">
+        <button id="searchBtn" onclick="search()">
             <span id="btnText">🔍 Search</span>
         </button>
     </div>
 </div>
 
-<!-- Results Section -->
-<div class="results-section">
+<!-- Results Card -->
+<div class="card">
     <div class="results-header">
-        <h2 class="results-title">Results</h2>
-        <div class="results-count" id="resultsCount">Ready</div>
+        <h2>Results</h2>
+        <div class="count" id="resultCount">Ready</div>
     </div>
     
-    <div class="table-container">
-        <div class="table-wrapper">
-            <table>
-                <tbody id="resultTable">
-                    <tr>
-                        <td colspan="7" class="empty-state">
-                            <div class="state-icon">🔍</div>
-                            <h3 class="state-title">Ready to Search</h3>
-                            <p class="state-text">Enter CNIC number above to search</p>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+    <div class="table-wrapper">
+        <table>
+            <tbody id="results">
+                <tr>
+                    <td colspan="7" class="state">
+                        <div class="state-icon">🔍</div>
+                        <h3>Ready to Search</h3>
+                        <p>Enter CNIC number above</p>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
 </div>
 
 </div>
 
 <script>
-// ==================== CONFIG ====================
+// Config
 const SHEET_ID = "1WxFeeRY5X8KaMAmZjogReKFHZaWi8We3";
 const SHEET_NAME = "Sheet1";
 
-// ==================== STATE ====================
+// State
 let data = [];
-let loaded = false;
+let ready = false;
 
-// ==================== INITIALIZATION ====================
+// Initialize
 window.onload = async () => {
     await loadData();
-    document.getElementById("searchInput").focus();
+    document.getElementById("cnicInput").focus();
 };
 
-// ==================== DATA LOADING ====================
+// Load data
 async function loadData(){
     const badge = document.getElementById("statusBadge");
-    const info = document.getElementById("sheetInfo");
+    const info = document.getElementById("statusInfo");
     
     try{
-        badge.className = "status-badge loading";
-        badge.innerHTML = '<span class="spinner"></span><span>Connecting</span>';
-        info.textContent = "Establishing connection...";
-        
         const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${SHEET_NAME}`;
         const start = performance.now();
         
-        const response = await fetch(url, {
-            method: 'GET',
-            cache: 'default',
-            mode: 'cors'
-        });
+        const res = await fetch(url);
+        if(!res.ok) throw new Error("Failed");
         
-        if(!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const csv = await response.text();
+        const csv = await res.text();
         const time = Math.round(performance.now() - start);
         
         data = parseCSV(csv);
-        loaded = true;
+        ready = true;
         
         const count = data.length - 1;
-        badge.className = "status-badge";
+        badge.className = "badge success";
         badge.innerHTML = '<span>✓</span><span>Connected</span>';
         info.textContent = `${count.toLocaleString()} records • ${time}ms`;
         
-        console.log(`✓ Loaded ${count} records in ${time}ms`);
-        
     }catch(err){
-        console.error("Load error:", err);
-        badge.className = "status-badge";
-        badge.style.background = "#fee2e2";
-        badge.style.color = "var(--error)";
+        badge.className = "badge error";
         badge.innerHTML = '<span>⚠</span><span>Failed</span>';
         info.textContent = "Connection failed";
     }
 }
 
-// ==================== CSV PARSER ====================
+// Parse CSV
 function parseCSV(csv){
-    const lines = csv.split("\n").filter(l => l.trim());
-    return lines.map(line => {
+    return csv.split("\n").filter(l => l.trim()).map(line => {
         const cells = [];
         let cell = '';
         let quoted = false;
         
         for(let i = 0; i < line.length; i++){
             const c = line[i];
-            const next = line[i + 1];
-            
             if(c === '"'){
-                if(quoted && next === '"'){
-                    cell += '"';
-                    i++;
-                }else{
-                    quoted = !quoted;
-                }
+                quoted = !quoted;
             }else if(c === ',' && !quoted){
                 cells.push(cell.trim());
                 cell = '';
@@ -625,27 +535,22 @@ function parseCSV(csv){
     });
 }
 
-// ==================== NORMALIZE ====================
-function normNum(val){
-    return String(val || "").replace(/\D/g, "");
-}
-
-// ==================== SEARCH ====================
-function searchData(){
-    if(!loaded){
-        showError("Data not loaded. Please wait...");
+// Search
+function search(){
+    if(!ready){
+        showError("Data not loaded");
         return;
     }
     
-    const input = document.getElementById("searchInput").value.trim();
+    const input = document.getElementById("cnicInput").value.trim();
     const btn = document.getElementById("searchBtn");
     const btnText = document.getElementById("btnText");
-    const count = document.getElementById("resultsCount");
+    const count = document.getElementById("resultCount");
     
-    const cnic = normNum(input);
+    const cnic = input.replace(/\D/g, "");
     
     if(cnic.length !== 13){
-        showError("Please enter valid 13-digit CNIC");
+        showError("Enter valid 13-digit CNIC");
         return;
     }
     
@@ -655,8 +560,7 @@ function searchData(){
     
     setTimeout(() => {
         const start = performance.now();
-        const rows = data.slice(1);
-        const results = rows.filter(r => normNum(r[1]) === cnic);
+        const results = data.slice(1).filter(r => r[1].replace(/\D/g, "") === cnic);
         const time = Math.round(performance.now() - start);
         
         btn.classList.remove("searching");
@@ -666,70 +570,62 @@ function searchData(){
             showNoResults();
             count.textContent = "No results";
         }else{
-            displayResults(results);
-            count.textContent = `${results.length} found (${time}ms)`;
+            showResults(results);
+            count.textContent = `${results.length} found • ${time}ms`;
         }
-        
-        console.log(`Search: ${results.length} results in ${time}ms`);
-    }, 300);
+    }, 200);
 }
 
-// ==================== DISPLAY FUNCTIONS ====================
+// Display functions
 function showLoading(){
-    const table = document.getElementById("resultTable");
-    table.innerHTML = `
+    document.getElementById("results").innerHTML = `
         <tr>
-            <td colspan="7" class="loading-state">
-                <div class="loading-spinner"></div>
-                <h3 class="state-title">Searching...</h3>
-                <p class="state-text">Processing query</p>
+            <td colspan="7" class="state">
+                <div class="loading-icon"></div>
+                <h3>Searching...</h3>
+                <p>Please wait</p>
             </td>
         </tr>`;
 }
 
 function showNoResults(){
-    const table = document.getElementById("resultTable");
-    table.innerHTML = `
+    document.getElementById("results").innerHTML = `
         <tr>
-            <td colspan="7" class="error-state">
+            <td colspan="7" class="state">
                 <div class="state-icon">❌</div>
-                <h3 class="state-title">No Results</h3>
-                <p class="state-text">No matching CNIC found in database</p>
+                <h3>No Results</h3>
+                <p>No matching CNIC found</p>
             </td>
         </tr>`;
 }
 
 function showError(msg){
-    const table = document.getElementById("resultTable");
-    const count = document.getElementById("resultsCount");
-    table.innerHTML = `
+    document.getElementById("results").innerHTML = `
         <tr>
-            <td colspan="7" class="error-state">
+            <td colspan="7" class="state">
                 <div class="state-icon">⚠️</div>
-                <h3 class="state-title">Error</h3>
-                <p class="state-text">${msg}</p>
+                <h3>Error</h3>
+                <p>${msg}</p>
             </td>
         </tr>`;
-    count.textContent = "Error";
+    document.getElementById("resultCount").textContent = "Error";
 }
 
-function displayResults(results){
-    const table = document.getElementById("resultTable");
-    
+function showResults(results){
     let html = `
-    <tr>
-        <th>Sr No</th>
-        <th>CNIC</th>
-        <th>Name</th>
-        <th>Contact</th>
-        <th>Branch Name</th>
-        <th>Branch Code</th>
-        <th>Batch</th>
-    </tr>`;
+        <tr>
+            <th>Sr No</th>
+            <th>CNIC</th>
+            <th>Name</th>
+            <th>Contact</th>
+            <th>Branch Name</th>
+            <th>Branch Code</th>
+            <th>Batch</th>
+        </tr>`;
     
     results.forEach((r, i) => {
         html += `
-        <tr style="animation-delay:${i * 0.03}s">
+        <tr style="animation-delay:${i * 0.05}s">
             <td>${r[0] || "-"}</td>
             <td>${r[1] || "-"}</td>
             <td>${r[2] || "-"}</td>
@@ -740,40 +636,35 @@ function displayResults(results){
         </tr>`;
     });
     
-    table.innerHTML = html;
+    document.getElementById("results").innerHTML = html;
 }
 
-// ==================== AUTO-FORMAT CNIC ====================
-document.getElementById("searchInput").addEventListener("input", e => {
+// Auto-format CNIC
+document.getElementById("cnicInput").addEventListener("input", e => {
     let v = e.target.value.replace(/\D/g, "").slice(0, 13);
     if(v.length > 5) v = v.slice(0, 5) + "-" + v.slice(5);
     if(v.length > 13) v = v.slice(0, 13) + "-" + v.slice(13);
     e.target.value = v;
 });
 
-// ==================== KEYBOARD EVENTS ====================
-document.getElementById("searchInput").addEventListener("keypress", e => {
-    if(e.key === "Enter"){
-        e.preventDefault();
-        searchData();
-    }
+// Keyboard events
+document.getElementById("cnicInput").addEventListener("keypress", e => {
+    if(e.key === "Enter") search();
 });
 
-document.getElementById("searchInput").addEventListener("keydown", e => {
+document.getElementById("cnicInput").addEventListener("keydown", e => {
     if(e.key === "Escape"){
         e.target.value = "";
         e.target.focus();
-        const table = document.getElementById("resultTable");
-        const count = document.getElementById("resultsCount");
-        table.innerHTML = `
+        document.getElementById("results").innerHTML = `
             <tr>
-                <td colspan="7" class="empty-state">
+                <td colspan="7" class="state">
                     <div class="state-icon">🔍</div>
-                    <h3 class="state-title">Ready to Search</h3>
-                    <p class="state-text">Enter CNIC number above to search</p>
+                    <h3>Ready to Search</h3>
+                    <p>Enter CNIC number above</p>
                 </td>
             </tr>`;
-        count.textContent = "Ready";
+        document.getElementById("resultCount").textContent = "Ready";
     }
 });
 </script>
