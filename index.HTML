@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ACAG Member Search - Advanced</title>
+<title>ACAG Member Search - Fixed</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -770,7 +770,7 @@ button.search-btn:disabled{
 
 .ocr-input{
     width:100%;
-    padding:15px;
+    padding:40px 20px;
     border:2px dashed var(--border);
     border-radius:12px;
     text-align:center;
@@ -791,9 +791,9 @@ button.search-btn:disabled{
 
 .progress-bar{
     width:100%;
-    height:8px;
+    height:10px;
     background:var(--border);
-    border-radius:4px;
+    border-radius:5px;
     overflow:hidden;
 }
 
@@ -806,9 +806,33 @@ button.search-btn:disabled{
 
 .progress-text{
     text-align:center;
-    margin-top:10px;
+    margin-top:12px;
     color:var(--text-light);
-    font-size:0.9rem;
+    font-size:0.95rem;
+    font-weight:600;
+}
+
+.ocr-result{
+    margin-top:20px;
+    padding:15px;
+    background:var(--bg-light);
+    border-radius:12px;
+    display:none;
+}
+
+.ocr-result-title{
+    font-weight:700;
+    color:var(--navy);
+    margin-bottom:10px;
+}
+
+.ocr-result-text{
+    font-family:monospace;
+    font-size:1.1rem;
+    color:var(--text-dark);
+    padding:10px;
+    background:white;
+    border-radius:8px;
 }
 
 /* Results */
@@ -1058,7 +1082,8 @@ td:nth-child(2){
         </div>
         <div id="reader"></div>
         <div class="modal-info">
-            📱 Position barcode/QR code within the frame
+            📱 Position barcode/QR code within the frame<br>
+            <small>Camera permission required</small>
         </div>
     </div>
 </div>
@@ -1074,9 +1099,9 @@ td:nth-child(2){
         <input type="file" id="imageInput" accept="image/*" capture="environment" style="display:none;" onchange="processImage(event)">
         
         <div class="ocr-input" onclick="document.getElementById('imageInput').click()">
-            <p style="font-size:3rem;margin-bottom:10px;">📸</p>
-            <p style="font-weight:600;color:var(--navy);">Take Photo or Upload Image</p>
-            <p style="font-size:0.9rem;color:var(--text-light);margin-top:8px;">Click to capture CNIC card</p>
+            <p style="font-size:3rem;margin-bottom:15px;">📸</p>
+            <p style="font-weight:700;color:var(--navy);font-size:1.1rem;margin-bottom:8px;">Take Photo or Upload Image</p>
+            <p style="font-size:0.9rem;color:var(--text-light);">CNIC card front or back side</p>
         </div>
         
         <img id="ocrPreview" alt="Preview">
@@ -1088,8 +1113,16 @@ td:nth-child(2){
             <p class="progress-text" id="progressText">Processing...</p>
         </div>
         
+        <div class="ocr-result" id="ocrResult">
+            <div class="ocr-result-title">✅ CNIC Extracted:</div>
+            <div class="ocr-result-text" id="ocrResultText"></div>
+        </div>
+        
         <div class="modal-info">
-            💡 Make sure CNIC number is clearly visible and well-lit
+            💡 Tips for best results:<br>
+            • Good lighting<br>
+            • Clear focus<br>
+            • Full CNIC visible
         </div>
     </div>
 </div>
@@ -1195,7 +1228,7 @@ td:nth-child(2){
 const SHEET_ID = "1WxFeeRY5X8KaMAmZjogReKFHZaWi8We3";
 const SHEET_NAME = "Sheet1";
 
-// Demo credentials (hidden from UI)
+// Demo credentials (hidden)
 const VALID_USERS = {
     'admin': 'acag2026',
     'user': 'user123',
@@ -1209,7 +1242,7 @@ let currentUser = null;
 let html5QrCode = null;
 let recognition = null;
 
-// Check session on load
+// Check session
 window.onload = () => {
     const savedUser = sessionStorage.getItem('acag_user');
     if(savedUser){
@@ -1220,7 +1253,7 @@ window.onload = () => {
     }
 };
 
-// Toggle password visibility
+// Toggle password
 function togglePassword(){
     const input = document.getElementById('password');
     const icon = document.getElementById('eyeIcon');
@@ -1234,7 +1267,7 @@ function togglePassword(){
     }
 }
 
-// Login function
+// Login
 function login(){
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
@@ -1263,7 +1296,7 @@ function login(){
     }
 }
 
-// Logout function
+// Logout
 function logout(){
     if(confirm('Are you sure you want to logout?')){
         currentUser = null;
@@ -1276,7 +1309,7 @@ function logout(){
     }
 }
 
-// Show app after login
+// Show app
 async function showApp(){
     document.getElementById('loginContainer').classList.add('hidden');
     document.getElementById('mainApp').classList.add('active');
@@ -1298,23 +1331,35 @@ document.addEventListener('keypress', e => {
 });
 
 // ===========================================
-// BARCODE/QR SCANNER
+// BARCODE/QR SCANNER (FIXED)
 // ===========================================
 function startScanner(){
     document.getElementById('scannerModal').classList.add('active');
     
     html5QrCode = new Html5Qrcode("reader");
     
-    html5QrCode.start(
-        { facingMode: "environment" },
-        {
-            fps: 10,
-            qrbox: { width: 250, height: 250 }
-        },
-        onScanSuccess,
-        () => {}
-    ).catch(err => {
-        alert("Unable to start camera. Please check permissions.");
+    // Try to get camera permission first
+    Html5Qrcode.getCameras().then(cameras => {
+        if(cameras && cameras.length) {
+            html5QrCode.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                },
+                onScanSuccess,
+                () => {}
+            ).catch(err => {
+                console.error("Scanner error:", err);
+                alert("Unable to start camera. Please:\n1. Allow camera permission\n2. Try again\n3. Use manual entry if camera fails");
+                stopScanner();
+            });
+        } else {
+            alert("No camera found on this device.");
+            stopScanner();
+        }
+    }).catch(err => {
+        alert("Camera permission denied. Please enable camera access in browser settings.");
         stopScanner();
     });
 }
@@ -1332,27 +1377,42 @@ function stopScanner(){
 }
 
 function onScanSuccess(decodedText){
-    const cnicMatch = decodedText.match(/\d{13}|\d{5}-\d{7}-\d/);
+    // Try multiple CNIC patterns
+    const patterns = [
+        /\d{13}/,  // 13 continuous digits
+        /\d{5}[\s-]?\d{7}[\s-]?\d/,  // With dashes or spaces
+        /(\d{5}).*?(\d{7}).*?(\d)/  // Separated pattern
+    ];
+    
+    let cnicMatch = null;
+    for(let pattern of patterns){
+        cnicMatch = decodedText.match(pattern);
+        if(cnicMatch) break;
+    }
     
     if(cnicMatch){
         const cnic = cnicMatch[0].replace(/\D/g, '');
-        fillCNIC(cnic);
-        stopScanner();
-        setTimeout(() => search(), 500);
+        if(cnic.length >= 13){
+            fillCNIC(cnic.slice(0, 13));
+            stopScanner();
+            setTimeout(() => search(), 500);
+        }
     }
 }
 
 // ===========================================
-// OCR TEXT EXTRACTION
+// OCR TEXT EXTRACTION (FIXED)
 // ===========================================
 function startOCR(){
     document.getElementById('ocrModal').classList.add('active');
+    document.getElementById('ocrPreview').style.display = 'none';
+    document.getElementById('ocrProgress').style.display = 'none';
+    document.getElementById('ocrResult').style.display = 'none';
 }
 
 function stopOCR(){
     document.getElementById('ocrModal').classList.remove('active');
-    document.getElementById('ocrPreview').style.display = 'none';
-    document.getElementById('ocrProgress').style.display = 'none';
+    document.getElementById('imageInput').value = '';
 }
 
 async function processImage(event){
@@ -1363,20 +1423,26 @@ async function processImage(event){
     const progress = document.getElementById('ocrProgress');
     const fill = document.getElementById('progressFill');
     const text = document.getElementById('progressText');
+    const result = document.getElementById('ocrResult');
+    const resultText = document.getElementById('ocrResultText');
     
     // Show preview
     preview.src = URL.createObjectURL(file);
     preview.style.display = 'block';
     progress.style.display = 'block';
+    result.style.display = 'none';
     
     try{
-        const result = await Tesseract.recognize(
+        text.textContent = 'Processing image...';
+        fill.style.width = '10%';
+        
+        const ocrResult = await Tesseract.recognize(
             file,
             'eng',
             {
                 logger: m => {
                     if(m.status === 'recognizing text'){
-                        const percent = Math.round(m.progress * 100);
+                        const percent = Math.round(m.progress * 90) + 10;
                         fill.style.width = percent + '%';
                         text.textContent = `Processing... ${percent}%`;
                     }
@@ -1384,42 +1450,76 @@ async function processImage(event){
             }
         );
         
-        // Extract CNIC from text
-        const extractedText = result.data.text;
-        const cnicMatch = extractedText.match(/\d{5}[\s-]?\d{7}[\s-]?\d/);
+        fill.style.width = '100%';
+        text.textContent = 'Extracting CNIC...';
         
-        if(cnicMatch){
-            const cnic = cnicMatch[0].replace(/\D/g, '');
-            fillCNIC(cnic);
-            stopOCR();
-            setTimeout(() => search(), 500);
+        // Extract CNIC - try multiple patterns
+        const extractedText = ocrResult.data.text;
+        console.log("Extracted text:", extractedText);
+        
+        // Multiple CNIC patterns
+        const patterns = [
+            /\d{5}[\s-]?\d{7}[\s-]?\d/g,  // Standard format
+            /\d{13}/g,  // Continuous 13 digits
+            /(\d{5}).*?(\d{7}).*?(\d)/  // Separated by other text
+        ];
+        
+        let cnic = null;
+        for(let pattern of patterns){
+            const matches = extractedText.match(pattern);
+            if(matches){
+                // Get the first match and clean it
+                cnic = matches[0].replace(/\D/g, '');
+                if(cnic.length >= 13){
+                    cnic = cnic.slice(0, 13);
+                    break;
+                }
+            }
+        }
+        
+        if(cnic && cnic.length === 13){
+            fill.style.width = '100%';
+            progress.style.display = 'none';
+            result.style.display = 'block';
+            resultText.textContent = formatCNIC(cnic);
+            
+            setTimeout(() => {
+                fillCNIC(cnic);
+                stopOCR();
+                setTimeout(() => search(), 500);
+            }, 1500);
         }else{
-            text.textContent = '❌ No CNIC found. Please try again.';
+            text.textContent = '❌ No valid CNIC found. Please:\n• Ensure good lighting\n• CNIC number is clear\n• Try again';
             fill.style.width = '0%';
+            fill.style.background = 'var(--error)';
         }
         
     }catch(err){
         console.error('OCR Error:', err);
-        text.textContent = '❌ Processing failed. Please try again.';
+        text.textContent = '❌ Processing failed. Please try again with a clearer photo.';
         fill.style.width = '0%';
+        fill.style.background = 'var(--error)';
     }
 }
 
 // ===========================================
-// VOICE SEARCH
+// VOICE SEARCH (FIXED)
 // ===========================================
 function startVoice(){
+    // Check browser support
     if(!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)){
-        alert('Voice recognition not supported in this browser.');
+        alert('Voice recognition not supported in this browser.\n\nSupported browsers:\n• Chrome\n• Edge\n• Safari (iOS 14.5+)');
         return;
     }
     
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     
+    // Configure for Urdu/English numbers
     recognition.lang = 'en-US';
     recognition.continuous = false;
     recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
     
     const voiceBtn = document.getElementById('voiceBtn');
     const voiceIcon = document.getElementById('voiceIcon');
@@ -1430,13 +1530,34 @@ function startVoice(){
     voiceText.textContent = 'Listening...';
     
     recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        const digits = transcript.replace(/\D/g, '');
+        const transcript = event.results[0][0].transcript.toLowerCase();
+        console.log("Voice input:", transcript);
+        
+        // Extract all digits from speech
+        const digitMap = {
+            'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
+            'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
+            'to': '2', 'for': '4', 'too': '2', 'tree': '3'
+        };
+        
+        let digits = transcript.replace(/[^\d]/g, '');
+        
+        // Also convert words to numbers
+        const words = transcript.split(/\s+/);
+        words.forEach(word => {
+            if(digitMap[word]){
+                digits += digitMap[word];
+            }
+        });
         
         if(digits.length >= 13){
             const cnic = digits.slice(0, 13);
             fillCNIC(cnic);
             setTimeout(() => search(), 500);
+        }else if(digits.length > 0){
+            alert(`Captured ${digits.length} digits. Please speak all 13 digits clearly.\n\nExample: "Three eight three zero two two eight one nine four four zero five"`);
+        }else{
+            alert('No digits recognized. Please speak the CNIC number clearly.');
         }
         
         voiceBtn.classList.remove('listening');
@@ -1444,11 +1565,19 @@ function startVoice(){
         voiceText.textContent = 'Voice Search';
     };
     
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
+        console.error("Voice error:", event.error);
         voiceBtn.classList.remove('listening');
         voiceIcon.textContent = '🎤';
         voiceText.textContent = 'Voice Search';
-        alert('Voice recognition failed. Please try again.');
+        
+        let errorMsg = 'Voice recognition failed.';
+        if(event.error === 'no-speech'){
+            errorMsg = 'No speech detected. Please try again and speak clearly.';
+        }else if(event.error === 'not-allowed'){
+            errorMsg = 'Microphone permission denied. Please enable microphone access.';
+        }
+        alert(errorMsg);
     };
     
     recognition.onend = () => {
@@ -1457,17 +1586,28 @@ function startVoice(){
         voiceText.textContent = 'Voice Search';
     };
     
-    recognition.start();
+    try{
+        recognition.start();
+    }catch(err){
+        voiceBtn.classList.remove('listening');
+        voiceIcon.textContent = '🎤';
+        voiceText.textContent = 'Voice Search';
+        alert('Failed to start voice recognition. Please try again.');
+    }
 }
 
 // ===========================================
 // HELPER FUNCTIONS
 // ===========================================
 function fillCNIC(cnic){
+    document.getElementById('cnicInput').value = formatCNIC(cnic);
+}
+
+function formatCNIC(cnic){
     let formatted = cnic;
     if(formatted.length > 5) formatted = formatted.slice(0, 5) + "-" + formatted.slice(5);
     if(formatted.length > 13) formatted = formatted.slice(0, 13) + "-" + formatted.slice(13);
-    document.getElementById('cnicInput').value = formatted;
+    return formatted;
 }
 
 // ===========================================
@@ -1651,9 +1791,7 @@ function showResults(results){
 // Auto-format CNIC
 document.getElementById("cnicInput").addEventListener("input", e => {
     let v = e.target.value.replace(/\D/g, "").slice(0, 13);
-    if(v.length > 5) v = v.slice(0, 5) + "-" + v.slice(5);
-    if(v.length > 13) v = v.slice(0, 13) + "-" + v.slice(13);
-    e.target.value = v;
+    e.target.value = formatCNIC(v);
 });
 
 // Keyboard shortcuts
