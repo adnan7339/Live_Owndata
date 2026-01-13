@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ACAG Member Search - Fixed</title>
+<title>ACAG Member Search - Complete</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,6 +14,11 @@
 
 <!-- Tesseract OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+<!-- Export Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
 <style>
 *{
@@ -235,6 +240,25 @@ body::before{
 
 .password-toggle:hover{
     color:var(--navy);
+}
+
+.remember-me{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:25px;
+}
+
+.remember-me input[type="checkbox"]{
+    width:18px;
+    height:18px;
+    cursor:pointer;
+}
+
+.remember-me label{
+    color:var(--text-dark);
+    font-size:0.95rem;
+    cursor:pointer;
 }
 
 .alert{
@@ -812,41 +836,44 @@ button.search-btn:disabled{
     font-weight:600;
 }
 
-.ocr-result{
-    margin-top:20px;
-    padding:15px;
-    background:var(--bg-light);
-    border-radius:12px;
-    display:none;
-}
-
-.ocr-result-title{
-    font-weight:700;
-    color:var(--navy);
-    margin-bottom:10px;
-}
-
-.ocr-result-text{
-    font-family:monospace;
-    font-size:1.1rem;
-    color:var(--text-dark);
-    padding:10px;
-    background:white;
-    border-radius:8px;
-}
-
 /* Results */
 .results-header{
     display:flex;
     justify-content:space-between;
     align-items:center;
     margin-bottom:25px;
+    flex-wrap:wrap;
+    gap:15px;
 }
 
 .results-header h2{
     color:var(--navy);
     font-size:1.6rem;
     font-weight:800;
+}
+
+.results-actions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+.action-btn{
+    padding:10px 20px;
+    background:var(--bg-light);
+    border:2px solid var(--border);
+    border-radius:10px;
+    color:var(--navy);
+    font-weight:600;
+    cursor:pointer;
+    transition:all 0.3s;
+    font-size:0.9rem;
+}
+
+.action-btn:hover{
+    background:white;
+    border-color:var(--navy);
+    transform:translateY(-2px);
 }
 
 .count{
@@ -996,6 +1023,14 @@ td:nth-child(2){
         gap:12px;
     }
     
+    .results-actions{
+        width:100%;
+    }
+    
+    .action-btn{
+        flex:1;
+    }
+    
     table{font-size:0.85rem;}
     
     th, td{padding:12px 15px;}
@@ -1066,6 +1101,11 @@ td:nth-child(2){
                 </div>
             </div>
             
+            <div class="remember-me">
+                <input type="checkbox" id="rememberMe" checked>
+                <label for="rememberMe">Keep me logged in on this device</label>
+            </div>
+            
             <button class="btn-login" onclick="login()">
                 <span id="loginBtnText">Login</span>
             </button>
@@ -1082,8 +1122,7 @@ td:nth-child(2){
         </div>
         <div id="reader"></div>
         <div class="modal-info">
-            📱 Position barcode/QR code within the frame<br>
-            <small>Camera permission required</small>
+            📱 Position barcode/QR code within the frame
         </div>
     </div>
 </div>
@@ -1100,8 +1139,8 @@ td:nth-child(2){
         
         <div class="ocr-input" onclick="document.getElementById('imageInput').click()">
             <p style="font-size:3rem;margin-bottom:15px;">📸</p>
-            <p style="font-weight:700;color:var(--navy);font-size:1.1rem;margin-bottom:8px;">Take Photo or Upload Image</p>
-            <p style="font-size:0.9rem;color:var(--text-light);">CNIC card front or back side</p>
+            <p style="font-weight:600;font-size:1.1rem;margin-bottom:8px;">Take Photo or Upload Image</p>
+            <p style="font-size:0.9rem;color:var(--text-light);">Click to capture CNIC card</p>
         </div>
         
         <img id="ocrPreview" alt="Preview">
@@ -1113,16 +1152,8 @@ td:nth-child(2){
             <p class="progress-text" id="progressText">Processing...</p>
         </div>
         
-        <div class="ocr-result" id="ocrResult">
-            <div class="ocr-result-title">✅ CNIC Extracted:</div>
-            <div class="ocr-result-text" id="ocrResultText"></div>
-        </div>
-        
         <div class="modal-info">
-            💡 Tips for best results:<br>
-            • Good lighting<br>
-            • Clear focus<br>
-            • Full CNIC visible
+            💡 Make sure CNIC number is clearly visible and well-lit
         </div>
     </div>
 </div>
@@ -1203,6 +1234,13 @@ td:nth-child(2){
 <div class="card">
     <div class="results-header">
         <h2>Search Results</h2>
+        <div class="results-actions">
+            <button class="action-btn" onclick="copyResults()">📋 Copy</button>
+            <button class="action-btn" onclick="exportExcel()">📊 Excel</button>
+            <button class="action-btn" onclick="exportPDF()">📄 PDF</button>
+            <button class="action-btn" onclick="printResults()">🖨️ Print</button>
+            <button class="action-btn" onclick="shareResults()">📤 Share</button>
+        </div>
         <div class="count" id="resultCount">Ready to search</div>
     </div>
     
@@ -1239,18 +1277,30 @@ const VALID_USERS = {
 let data = [];
 let ready = false;
 let currentUser = null;
+let currentResults = [];
 let html5QrCode = null;
 let recognition = null;
 
-// Check session
+// Check persistent login (localStorage for persistent, sessionStorage for session-only)
 window.onload = () => {
-    const savedUser = sessionStorage.getItem('acag_user');
-    if(savedUser){
-        currentUser = savedUser;
+    // Check localStorage first (persistent login)
+    const persistentUser = localStorage.getItem('acag_user_persistent');
+    if(persistentUser){
+        currentUser = persistentUser;
         showApp();
-    }else{
-        document.getElementById('username').focus();
+        return;
     }
+    
+    // Then check sessionStorage (session-only login)
+    const sessionUser = sessionStorage.getItem('acag_user');
+    if(sessionUser){
+        currentUser = sessionUser;
+        showApp();
+        return;
+    }
+    
+    // No login found, show login screen
+    document.getElementById('username').focus();
 };
 
 // Toggle password
@@ -1271,6 +1321,7 @@ function togglePassword(){
 function login(){
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
+    const rememberMe = document.getElementById('rememberMe').checked;
     const errorEl = document.getElementById('loginError');
     const btnText = document.getElementById('loginBtnText');
     
@@ -1287,7 +1338,15 @@ function login(){
         
         setTimeout(() => {
             currentUser = username;
-            sessionStorage.setItem('acag_user', username);
+            
+            // Save to localStorage if "Keep me logged in" is checked
+            if(rememberMe){
+                localStorage.setItem('acag_user_persistent', username);
+            }else{
+                // Otherwise save to sessionStorage only
+                sessionStorage.setItem('acag_user', username);
+            }
+            
             showApp();
         }, 800);
     }else{
@@ -1300,7 +1359,11 @@ function login(){
 function logout(){
     if(confirm('Are you sure you want to logout?')){
         currentUser = null;
+        
+        // Remove from both localStorage and sessionStorage
+        localStorage.removeItem('acag_user_persistent');
         sessionStorage.removeItem('acag_user');
+        
         document.getElementById('mainApp').classList.remove('active');
         document.getElementById('loginContainer').classList.remove('hidden');
         document.getElementById('username').value = '';
@@ -1331,35 +1394,30 @@ document.addEventListener('keypress', e => {
 });
 
 // ===========================================
-// BARCODE/QR SCANNER (FIXED)
+// BARCODE/QR SCANNER
 // ===========================================
 function startScanner(){
     document.getElementById('scannerModal').classList.add('active');
     
     html5QrCode = new Html5Qrcode("reader");
     
-    // Try to get camera permission first
     Html5Qrcode.getCameras().then(cameras => {
-        if(cameras && cameras.length) {
+        if(cameras && cameras.length){
             html5QrCode.start(
                 { facingMode: "environment" },
-                {
-                    fps: 10,
-                    qrbox: { width: 250, height: 250 }
-                },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
                 onScanSuccess,
                 () => {}
-            ).catch(err => {
-                console.error("Scanner error:", err);
-                alert("Unable to start camera. Please:\n1. Allow camera permission\n2. Try again\n3. Use manual entry if camera fails");
+            ).catch(() => {
+                alert("Unable to start camera. Please check permissions.");
                 stopScanner();
             });
-        } else {
+        }else{
             alert("No camera found on this device.");
             stopScanner();
         }
-    }).catch(err => {
-        alert("Camera permission denied. Please enable camera access in browser settings.");
+    }).catch(() => {
+        alert("Camera permission denied. Please enable camera access.");
         stopScanner();
     });
 }
@@ -1377,11 +1435,10 @@ function stopScanner(){
 }
 
 function onScanSuccess(decodedText){
-    // Try multiple CNIC patterns
     const patterns = [
-        /\d{13}/,  // 13 continuous digits
-        /\d{5}[\s-]?\d{7}[\s-]?\d/,  // With dashes or spaces
-        /(\d{5}).*?(\d{7}).*?(\d)/  // Separated pattern
+        /\d{13}/,
+        /\d{5}[\s-]?\d{7}[\s-]?\d/,
+        /(\d{5}).*?(\d{7}).*?(\d)/
     ];
     
     let cnicMatch = null;
@@ -1401,13 +1458,12 @@ function onScanSuccess(decodedText){
 }
 
 // ===========================================
-// OCR TEXT EXTRACTION (FIXED)
+// OCR TEXT EXTRACTION
 // ===========================================
 function startOCR(){
     document.getElementById('ocrModal').classList.add('active');
     document.getElementById('ocrPreview').style.display = 'none';
     document.getElementById('ocrProgress').style.display = 'none';
-    document.getElementById('ocrResult').style.display = 'none';
 }
 
 function stopOCR(){
@@ -1423,20 +1479,16 @@ async function processImage(event){
     const progress = document.getElementById('ocrProgress');
     const fill = document.getElementById('progressFill');
     const text = document.getElementById('progressText');
-    const result = document.getElementById('ocrResult');
-    const resultText = document.getElementById('ocrResultText');
     
-    // Show preview
     preview.src = URL.createObjectURL(file);
     preview.style.display = 'block';
     progress.style.display = 'block';
-    result.style.display = 'none';
     
     try{
         text.textContent = 'Processing image...';
         fill.style.width = '10%';
         
-        const ocrResult = await Tesseract.recognize(
+        const result = await Tesseract.recognize(
             file,
             'eng',
             {
@@ -1453,22 +1505,16 @@ async function processImage(event){
         fill.style.width = '100%';
         text.textContent = 'Extracting CNIC...';
         
-        // Extract CNIC - try multiple patterns
-        const extractedText = ocrResult.data.text;
-        console.log("Extracted text:", extractedText);
-        
-        // Multiple CNIC patterns
+        const extractedText = result.data.text;
         const patterns = [
-            /\d{5}[\s-]?\d{7}[\s-]?\d/g,  // Standard format
-            /\d{13}/g,  // Continuous 13 digits
-            /(\d{5}).*?(\d{7}).*?(\d)/  // Separated by other text
+            /\d{5}[\s-]?\d{7}[\s-]?\d/g,
+            /\d{13}/g
         ];
         
         let cnic = null;
         for(let pattern of patterns){
             const matches = extractedText.match(pattern);
             if(matches){
-                // Get the first match and clean it
                 cnic = matches[0].replace(/\D/g, '');
                 if(cnic.length >= 13){
                     cnic = cnic.slice(0, 13);
@@ -1479,34 +1525,29 @@ async function processImage(event){
         
         if(cnic && cnic.length === 13){
             fill.style.width = '100%';
-            progress.style.display = 'none';
-            result.style.display = 'block';
-            resultText.textContent = formatCNIC(cnic);
+            text.textContent = '✓ CNIC Found!';
             
             setTimeout(() => {
                 fillCNIC(cnic);
                 stopOCR();
                 setTimeout(() => search(), 500);
-            }, 1500);
+            }, 1000);
         }else{
-            text.textContent = '❌ No valid CNIC found. Please:\n• Ensure good lighting\n• CNIC number is clear\n• Try again';
+            text.textContent = '❌ No valid CNIC found. Please try again.';
             fill.style.width = '0%';
-            fill.style.background = 'var(--error)';
         }
         
     }catch(err){
         console.error('OCR Error:', err);
-        text.textContent = '❌ Processing failed. Please try again with a clearer photo.';
+        text.textContent = '❌ Processing failed. Please try again.';
         fill.style.width = '0%';
-        fill.style.background = 'var(--error)';
     }
 }
 
 // ===========================================
-// VOICE SEARCH (FIXED)
+// VOICE SEARCH
 // ===========================================
 function startVoice(){
-    // Check browser support
     if(!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)){
         alert('Voice recognition not supported in this browser.\n\nSupported browsers:\n• Chrome\n• Edge\n• Safari (iOS 14.5+)');
         return;
@@ -1515,11 +1556,9 @@ function startVoice(){
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     
-    // Configure for Urdu/English numbers
     recognition.lang = 'en-US';
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
     
     const voiceBtn = document.getElementById('voiceBtn');
     const voiceIcon = document.getElementById('voiceIcon');
@@ -1531,23 +1570,18 @@ function startVoice(){
     
     recognition.onresult = (event) => {
         const transcript = event.results[0][0].transcript.toLowerCase();
-        console.log("Voice input:", transcript);
         
-        // Extract all digits from speech
         const digitMap = {
             'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
             'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
-            'to': '2', 'for': '4', 'too': '2', 'tree': '3'
+            'to': '2', 'for': '4', 'too': '2'
         };
         
         let digits = transcript.replace(/[^\d]/g, '');
         
-        // Also convert words to numbers
         const words = transcript.split(/\s+/);
         words.forEach(word => {
-            if(digitMap[word]){
-                digits += digitMap[word];
-            }
+            if(digitMap[word]) digits += digitMap[word];
         });
         
         if(digits.length >= 13){
@@ -1555,9 +1589,7 @@ function startVoice(){
             fillCNIC(cnic);
             setTimeout(() => search(), 500);
         }else if(digits.length > 0){
-            alert(`Captured ${digits.length} digits. Please speak all 13 digits clearly.\n\nExample: "Three eight three zero two two eight one nine four four zero five"`);
-        }else{
-            alert('No digits recognized. Please speak the CNIC number clearly.');
+            alert(`Captured ${digits.length} digits. Please speak all 13 digits clearly.`);
         }
         
         voiceBtn.classList.remove('listening');
@@ -1566,16 +1598,15 @@ function startVoice(){
     };
     
     recognition.onerror = (event) => {
-        console.error("Voice error:", event.error);
         voiceBtn.classList.remove('listening');
         voiceIcon.textContent = '🎤';
         voiceText.textContent = 'Voice Search';
         
         let errorMsg = 'Voice recognition failed.';
         if(event.error === 'no-speech'){
-            errorMsg = 'No speech detected. Please try again and speak clearly.';
+            errorMsg = 'No speech detected. Please try again.';
         }else if(event.error === 'not-allowed'){
-            errorMsg = 'Microphone permission denied. Please enable microphone access.';
+            errorMsg = 'Microphone permission denied.';
         }
         alert(errorMsg);
     };
@@ -1586,14 +1617,7 @@ function startVoice(){
         voiceText.textContent = 'Voice Search';
     };
     
-    try{
-        recognition.start();
-    }catch(err){
-        voiceBtn.classList.remove('listening');
-        voiceIcon.textContent = '🎤';
-        voiceText.textContent = 'Voice Search';
-        alert('Failed to start voice recognition. Please try again.');
-    }
+    recognition.start();
 }
 
 // ===========================================
@@ -1620,14 +1644,14 @@ async function loadData(){
     try{
         badge.className = "badge loading";
         badge.innerHTML = '<span class="spinner"></span><span>Connecting</span>';
-        info.textContent = "Establishing secure connection...";
+        info.textContent = "Connecting to Google Sheets...";
         
         const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${SHEET_NAME}`;
         const start = performance.now();
         
         const res = await fetch(url, {
             method: 'GET',
-            cache: 'force-cache',
+            cache: 'no-cache',
             mode: 'cors'
         });
         
@@ -1717,6 +1741,7 @@ function search(){
             showNoResults();
             count.textContent = "No results found";
         }else{
+            currentResults = results;
             showResults(results);
             count.textContent = `${results.length} record(s) found in ${time}ms`;
         }
@@ -1762,15 +1787,15 @@ function showError(msg){
 
 function showResults(results){
     let html = `
-        <tr>
-            <th>Sr No</th>
-            <th>CNIC</th>
-            <th>Name</th>
-            <th>Contact</th>
-            <th>Branch Name</th>
-            <th>Branch Code</th>
-            <th>Batch</th>
-        </tr>`;
+    <tr>
+        <th>Sr No</th>
+        <th>CNIC</th>
+        <th>Name</th>
+        <th>Contact</th>
+        <th>Branch Name</th>
+        <th>Branch Code</th>
+        <th>Batch</th>
+    </tr>`;
     
     results.forEach((r, i) => {
         html += `
@@ -1788,10 +1813,112 @@ function showResults(results){
     document.getElementById("results").innerHTML = html;
 }
 
+// ===========================================
+// EXPORT FUNCTIONS
+// ===========================================
+function copyResults(){
+    if(currentResults.length === 0){
+        alert('No results to copy');
+        return;
+    }
+    
+    let text = 'Sr No\tCNIC\tName\tContact\tBranch Name\tBranch Code\tBatch\n';
+    currentResults.forEach(r => {
+        text += `${r[0]}\t${r[1]}\t${r[2]}\t${r[3]}\t${r[4]}\t${r[5]}\t${r[6]}\n`;
+    });
+    
+    navigator.clipboard.writeText(text).then(() => {
+        alert('✓ Results copied to clipboard');
+    }).catch(() => {
+        alert('Failed to copy');
+    });
+}
+
+function exportExcel(){
+    if(currentResults.length === 0){
+        alert('No results to export');
+        return;
+    }
+    
+    const ws = XLSX.utils.aoa_to_sheet([
+        ['Sr No', 'CNIC', 'Applicant Name', 'Contact No', 'Branch Name', 'Branch Code', 'Batch No'],
+        ...currentResults
+    ]);
+    
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ACAG Results');
+    XLSX.writeFile(wb, `ACAG_Search_Results_${Date.now()}.xlsx`);
+}
+
+function exportPDF(){
+    if(currentResults.length === 0){
+        alert('No results to export');
+        return;
+    }
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text('ACAG Member Search Results', 14, 20);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+    
+    doc.autoTable({
+        head: [['Sr No', 'CNIC', 'Name', 'Contact', 'Branch', 'Code', 'Batch']],
+        body: currentResults.map(r => [r[0], r[1], r[2], r[3], r[4], r[5], r[6]]),
+        startY: 35,
+        styles: { fontSize: 9 }
+    });
+    
+    doc.save(`ACAG_Results_${Date.now()}.pdf`);
+}
+
+function printResults(){
+    if(currentResults.length === 0){
+        alert('No results to print');
+        return;
+    }
+    
+    const printWindow = window.open('', '', 'height=600,width=800');
+    printWindow.document.write('<html><head><title>ACAG Search Results</title>');
+    printWindow.document.write('<style>body{font-family:Arial;padding:20px;}h2{margin-bottom:10px;color:#003d82;}p{color:#666;margin-bottom:20px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ddd;padding:12px;text-align:left;}th{background:#003d82;color:#c59d5f;font-weight:600;}</style>');
+    printWindow.document.write('</head><body>');
+    printWindow.document.write('<h2>ACAG Member Search Results</h2>');
+    printWindow.document.write(`<p>Generated: ${new Date().toLocaleString()}</p>`);
+    printWindow.document.write('<table><thead><tr><th>Sr No</th><th>CNIC</th><th>Name</th><th>Contact</th><th>Branch Name</th><th>Branch Code</th><th>Batch</th></tr></thead><tbody>');
+    
+    currentResults.forEach(r => {
+        printWindow.document.write(`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td>${r[6]}</td></tr>`);
+    });
+    
+    printWindow.document.write('</tbody></table></body></html>');
+    printWindow.document.close();
+    printWindow.print();
+}
+
+function shareResults(){
+    if(currentResults.length === 0){
+        alert('No results to share');
+        return;
+    }
+    
+    if(navigator.share){
+        navigator.share({
+            title: 'ACAG Search Results',
+            text: `Found ${currentResults.length} record${currentResults.length > 1 ? 's' : ''} in ACAG database`
+        }).catch(() => {});
+    }else{
+        alert('Share feature not supported in this browser');
+    }
+}
+
 // Auto-format CNIC
 document.getElementById("cnicInput").addEventListener("input", e => {
-    let v = e.target.value.replace(/\D/g, "").slice(0, 13);
-    e.target.value = formatCNIC(v);
+    let v = e.target.value.replace(/\D/g,"").slice(0,13);
+    if(v.length>5) v = v.slice(0,5)+"-"+v.slice(5);
+    if(v.length>13) v = v.slice(0,13)+"-"+v.slice(13);
+    e.target.value = v;
 });
 
 // Keyboard shortcuts
