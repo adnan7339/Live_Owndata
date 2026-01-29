@@ -1642,6 +1642,7 @@ async function loadData(){
     const info = document.getElementById("statusInfo");
     
     try{
+        // Step 1: Connecting
         badge.className = "badge loading";
         badge.innerHTML = '<span class="spinner"></span><span>Connecting</span>';
         info.textContent = "Connecting to Google Sheets...";
@@ -1649,59 +1650,98 @@ async function loadData(){
         const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${SHEET_NAME}`;
         const start = performance.now();
         
+        // Add 30-second timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        
         const res = await fetch(url, {
             method: 'GET',
             cache: 'no-cache',
-            mode: 'cors'
+            mode: 'cors',
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         
         if(!res.ok) throw new Error("Connection failed");
         
-        const csv = await res.text();
-        const time = Math.round(performance.now() - start);
+        // Step 2: Loading
+        badge.innerHTML = '<span class="spinner"></span><span>Loading</span>';
+        info.textContent = "Downloading data from Google Sheets...";
         
-        data = parseCSV(csv);
+        const csv = await res.text();
+        
+        // Step 3: Processing with progress
+        badge.innerHTML = '<span class="spinner"></span><span>Processing</span>';
+        info.textContent = "Processing data...";
+        
+        // Parse CSV in chunks to avoid UI freeze
+        await new Promise(resolve => setTimeout(resolve, 10));
+        
+        const lines = csv.split("\n").filter(l => l.trim());
+        data = [];
+        
+        for(let i = 0; i < lines.length; i++){
+            if(i % 10000 === 0 && i > 0){
+                const progress = Math.round((i / lines.length) * 100);
+                badge.innerHTML = `<span class="spinner"></span><span>Processing ${progress}%</span>`;
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+            
+            const line = lines[i];
+            const cells = [];
+            let cell = '';
+            let quoted = false;
+            
+            for(let j = 0; j < line.length; j++){
+                const c = line[j];
+                const next = line[j + 1];
+                
+                if(c === '"'){
+                    if(quoted && next === '"'){
+                        cell += '"';
+                        j++;
+                    }else{
+                        quoted = !quoted;
+                    }
+                }else if(c === ',' && !quoted){
+                    cells.push(cell.trim());
+                    cell = '';
+                }else{
+                    cell += c;
+                }
+            }
+            cells.push(cell.trim());
+            data.push(cells);
+        }
+        
+        const time = Math.round(performance.now() - start);
         ready = true;
         
         const count = data.length - 1;
+        
+        // Step 4: Connected
         badge.className = "badge success";
         badge.innerHTML = '<span>✓</span><span>Connected</span>';
         info.innerHTML = `<strong>${count.toLocaleString()}</strong> records loaded in <strong>${time}ms</strong>`;
         
+        // Show final state after 2 seconds
+        setTimeout(() => {
+            badge.innerHTML = `<span>✓</span><span>${count.toLocaleString()} Records</span>`;
+        }, 2000);
+        
     }catch(err){
         badge.className = "badge error";
-        badge.innerHTML = '<span>⚠</span><span>Failed</span>';
-        info.textContent = "Connection failed. Please refresh.";
-    }
-}
-
-function parseCSV(csv){
-    return csv.split("\n").filter(l => l.trim()).map(line => {
-        const cells = [];
-        let cell = '';
-        let quoted = false;
         
-        for(let i = 0; i < line.length; i++){
-            const c = line[i];
-            const next = line[i + 1];
-            
-            if(c === '"'){
-                if(quoted && next === '"'){
-                    cell += '"';
-                    i++;
-                }else{
-                    quoted = !quoted;
-                }
-            }else if(c === ',' && !quoted){
-                cells.push(cell.trim());
-                cell = '';
-            }else{
-                cell += c;
-            }
+        if(err.name === 'AbortError'){
+            badge.innerHTML = '<span>⚠</span><span>Timeout</span>';
+            info.textContent = "Connection timed out after 30 seconds. Please try again.";
+            alert('❌ Connection Timeout\n\nThe connection took too long. Please check:\n1. Your internet connection\n2. Google Sheets link is accessible\n3. Try again in a few moments');
+        }else{
+            badge.innerHTML = '<span>⚠</span><span>Failed</span>';
+            info.textContent = "Connection failed. Please refresh.";
+            alert('❌ Failed to connect to database\n\nPlease check:\n1. Google Sheet is shared (Anyone with link can view)\n2. Internet connection is working\n3. Sheet ID is correct');
         }
-        cells.push(cell.trim());
-        return cells;
-    });
+    }
 }
 
 // ===========================================
@@ -1729,23 +1769,48 @@ function search(){
     btnText.textContent = "⏳ Searching";
     showLoading();
     
-    setTimeout(() => {
-        const start = performance.now();
-        const results = data.slice(1).filter(r => r[1].replace(/\D/g, "") === cnic);
-        const time = Math.round(performance.now() - start);
-        
-        btn.disabled = false;
-        btnText.textContent = "🔍 Search";
-        
-        if(results.length === 0){
-            showNoResults();
-            count.textContent = "No results found";
-        }else{
-            currentResults = results;
-            showResults(results);
-            count.textContent = `${results.length} record(s) found in ${time}ms`;
-        }
-    }, 250);
+    // Use requestAnimationFrame for smoother UI
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            try{
+                const start = performance.now();
+                console.log('Searching for CNIC:', cnic, 'in', data.length - 1, 'rows');
+                
+                // Optimized search
+                const results = [];
+                const rows = data.slice(1);
+                
+                for(let i = 0; i < rows.length; i++){
+                    const rowCnic = rows[i][1].replace(/\D/g, "");
+                    if(rowCnic === cnic){
+                        results.push(rows[i]);
+                    }
+                }
+                
+                const time = Math.round(performance.now() - start);
+                console.log('Found results:', results.length, 'in', time, 'ms');
+                
+                btn.disabled = false;
+                btnText.textContent = "🔍 Search";
+                
+                if(results.length === 0){
+                    alert('❌ NO DATA FOUND\n\nThe CNIC you entered is not in the database.');
+                    showNoResults();
+                    count.textContent = "No results found";
+                }else{
+                    currentResults = results;
+                    showResults(results);
+                    count.textContent = `${results.length} record(s) found in ${time}ms`;
+                }
+            }catch(err){
+                console.error('Search Error:', err);
+                btn.disabled = false;
+                btnText.textContent = "🔍 Search";
+                alert('❌ Search Error\n\nAn error occurred during search. Please try again.');
+                showError("Search failed. Please try again.");
+            }
+        }, 50);
+    });
 }
 
 // ===========================================
