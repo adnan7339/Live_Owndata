@@ -872,8 +872,11 @@ td:nth-child(2){font-family:monospace;color:var(--navy-light);}
           <p id="statusInfo">Initializing connection...</p>
         </div>
       </div>
-      <div class="badge loading" id="statusBadge">
-        <span class="spinner"></span><span>Loading</span>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="action-btn" id="refreshDataBtn" onclick="forceRefreshData()" title="Force reload from Google Sheets" style="padding:8px 14px;">🔄 Refresh</button>
+        <div class="badge loading" id="statusBadge">
+          <span class="spinner"></span><span>Loading</span>
+        </div>
       </div>
     </div>
   </div>
@@ -933,6 +936,61 @@ td:nth-child(2){font-family:monospace;color:var(--navy-light);}
 // =============================================
 const SHEET_ID = "1WxFeeRY5X8KaMAmZjogReKFHZaWi8We3";
 const SHEET_NAME = "Sheet1";
+
+// =============================================
+// LOCAL DATA CACHE (IndexedDB) — avoids reconnecting
+// to Google Sheets on every load. Same sheet link,
+// data is fetched once then reused from the cache.
+// A silent background sync keeps it up to date.
+// =============================================
+const DB_NAME = 'acag_cache_db';
+const DB_STORE = 'sheet_cache';
+const CACHE_KEY = 'sheetData';
+const BACKGROUND_SYNC_INTERVAL = 5 * 60 * 1000; // re-check sheet every 5 min while app is open
+
+function openCacheDB(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = ()=>{
+      const db = req.result;
+      if(!db.objectStoreNames.contains(DB_STORE)) db.createObjectStore(DB_STORE, {keyPath:'key'});
+    };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error);
+  });
+}
+
+async function getCachedSheetData(){
+  try{
+    const db = await openCacheDB();
+    return await new Promise((resolve,reject)=>{
+      const tx = db.transaction(DB_STORE,'readonly');
+      const store = tx.objectStore(DB_STORE);
+      const req = store.get(CACHE_KEY);
+      req.onsuccess = ()=>resolve(req.result || null);
+      req.onerror = ()=>reject(req.error);
+    });
+  }catch(e){
+    console.warn('Cache read failed, falling back to fresh load', e);
+    return null;
+  }
+}
+
+async function setCachedSheetData(data){
+  try{
+    const db = await openCacheDB();
+    return await new Promise((resolve,reject)=>{
+      const tx = db.transaction(DB_STORE,'readwrite');
+      const store = tx.objectStore(DB_STORE);
+      const req = store.put({key:CACHE_KEY, data, savedAt: Date.now()});
+      req.onsuccess = ()=>resolve(true);
+      req.onerror = ()=>reject(req.error);
+    });
+  }catch(e){
+    console.warn('Cache write failed', e);
+    return false;
+  }
+}
 
 // =============================================
 // USER STORE (persisted to localStorage)
@@ -1482,55 +1540,81 @@ function startVoice(){
 }
 
 // =============================================
-// DATA LOADING — same Google Sheet
+// DATA LOADING — same Google Sheet, now cached
+// (loads instantly from IndexedDB after the first
+// time; refreshes quietly in the background so you
+// don't have to wait/reconnect every time)
 // =============================================
-async function loadData(){
-  const badge=document.getElementById("statusBadge");
-  const info=document.getElementById("statusInfo");
+function parseCSV(csv){
+  const lines=csv.split("\n").filter(l=>l.trim());
+  const rows=[];
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];const cells=[];let cell='';let quoted=false;
+    for(let j=0;j<line.length;j++){
+      const c=line[j];const next=line[j+1];
+      if(c==='"'){if(quoted&&next==='"'){cell+='"';j++;}else{quoted=!quoted;}}
+      else if(c===','&&!quoted){cells.push(cell.trim());cell='';}
+      else{cell+=c;}
+    }
+    cells.push(cell.trim());
+    rows.push(cells);
+  }
+  return rows;
+}
+
+async function fetchSheetCSV(){
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${SHEET_NAME}`;
+  const controller=new AbortController();
+  const timeoutId=setTimeout(()=>controller.abort(),30000);
   try{
-    badge.className="badge loading";
-    badge.innerHTML='<span class="spinner"></span><span>Connecting</span>';
-    info.textContent="Connecting to Google Sheets...";
-    const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${SHEET_NAME}`;
-    const start=performance.now();
-    const controller=new AbortController();
-    const timeoutId=setTimeout(()=>controller.abort(),30000);
     const res=await fetch(url,{method:'GET',cache:'no-cache',mode:'cors',signal:controller.signal});
     clearTimeout(timeoutId);
     if(!res.ok) throw new Error("Connection failed");
-    badge.innerHTML='<span class="spinner"></span><span>Loading</span>';
-    info.textContent="Downloading data from Google Sheets...";
-    const csv=await res.text();
-    badge.innerHTML='<span class="spinner"></span><span>Processing</span>';
-    info.textContent="Processing data...";
-    await new Promise(r=>setTimeout(r,10));
-    const lines=csv.split("\n").filter(l=>l.trim());
-    sheetData=[];
-    for(let i=0;i<lines.length;i++){
-      if(i%10000===0&&i>0){
-        const pct=Math.round((i/lines.length)*100);
-        badge.innerHTML=`<span class="spinner"></span><span>Processing ${pct}%</span>`;
-        await new Promise(r=>setTimeout(r,0));
-      }
-      const line=lines[i];const cells=[];let cell='';let quoted=false;
-      for(let j=0;j<line.length;j++){
-        const c=line[j];const next=line[j+1];
-        if(c==='"'){if(quoted&&next==='"'){cell+='"';j++;}else{quoted=!quoted;}}
-        else if(c===','&&!quoted){cells.push(cell.trim());cell='';}
-        else{cell+=c;}
-      }
-      cells.push(cell.trim());
-      sheetData.push(cells);
+    return await res.text();
+  }finally{
+    clearTimeout(timeoutId);
+  }
+}
+
+// Loads data from the network and updates cache + UI
+async function fetchAndApplyFreshData(isBackground){
+  const badge=document.getElementById("statusBadge");
+  const info=document.getElementById("statusInfo");
+  try{
+    if(!isBackground){
+      badge.className="badge loading";
+      badge.innerHTML='<span class="spinner"></span><span>Connecting</span>';
+      info.textContent="Connecting to Google Sheets...";
     }
+    const start=performance.now();
+    const csv=await fetchSheetCSV();
+    if(!isBackground){
+      badge.innerHTML='<span class="spinner"></span><span>Processing</span>';
+      info.textContent="Processing data...";
+      await new Promise(r=>setTimeout(r,10));
+    }
+    const rows=parseCSV(csv);
     const time=Math.round(performance.now()-start);
+    sheetData=rows;
     ready=true;
+    await setCachedSheetData(rows);
     const count=sheetData.length-1;
     badge.className="badge success";
     badge.innerHTML='<span>✓</span><span>Connected</span>';
-    info.innerHTML=`<strong>${count.toLocaleString()}</strong> records loaded in <strong>${time}ms</strong>`;
+    info.innerHTML=`<strong>${count.toLocaleString()}</strong> records ${isBackground?'synced':'loaded'} in <strong>${time}ms</strong>`;
     setTimeout(()=>{badge.innerHTML=`<span>✓</span><span>${count.toLocaleString()} Records</span>`;},2000);
-    logActivity('📊',`Database loaded: <strong>${count.toLocaleString()}</strong> records by <strong>${currentUser}</strong>`);
+    if(isBackground){
+      logActivity('🔄',`Background sync: <strong>${count.toLocaleString()}</strong> records refreshed`);
+    }else{
+      logActivity('📊',`Database loaded: <strong>${count.toLocaleString()}</strong> records by <strong>${currentUser}</strong>`);
+    }
+    return true;
   }catch(err){
+    if(isBackground){
+      // Silent failure in background — keep using cached/current data
+      console.warn('Background sync failed, keeping cached data', err);
+      return false;
+    }
     badge.className="badge error";
     if(err.name==='AbortError'){
       badge.innerHTML='<span>⚠</span><span>Timeout</span>';
@@ -1541,7 +1625,46 @@ async function loadData(){
       info.textContent="Connection failed. Please refresh.";
       alert('❌ Failed to connect to database\n\nPlease check:\n1. Google Sheet is shared (Anyone with link can view)\n2. Internet connection\n3. Sheet ID is correct');
     }
+    return false;
   }
+}
+
+let backgroundSyncTimer=null;
+function startBackgroundSync(){
+  if(backgroundSyncTimer) clearInterval(backgroundSyncTimer);
+  backgroundSyncTimer=setInterval(()=>{fetchAndApplyFreshData(true);},BACKGROUND_SYNC_INTERVAL);
+}
+
+async function loadData(){
+  const badge=document.getElementById("statusBadge");
+  const info=document.getElementById("statusInfo");
+  const cached=await getCachedSheetData();
+  if(cached && cached.data && cached.data.length){
+    // Instant load from cache — no waiting, no reconnecting
+    sheetData=cached.data;
+    ready=true;
+    const count=sheetData.length-1;
+    const ageMins=Math.round((Date.now()-cached.savedAt)/60000);
+    badge.className="badge success";
+    badge.innerHTML='<span>✓</span><span>Connected</span>';
+    info.innerHTML=`<strong>${count.toLocaleString()}</strong> records loaded instantly from cache (${ageMins<1?'just now':ageMins+' min ago'})`;
+    setTimeout(()=>{badge.innerHTML=`<span>✓</span><span>${count.toLocaleString()} Records</span>`;},2000);
+    logActivity('⚡',`Database loaded from cache: <strong>${count.toLocaleString()}</strong> records by <strong>${currentUser}</strong>`);
+    // Quietly check for updates in the background, without blocking the UI
+    fetchAndApplyFreshData(true);
+  }else{
+    // First time ever (or cache cleared) — fetch fresh from the sheet
+    await fetchAndApplyFreshData(false);
+  }
+  startBackgroundSync();
+}
+
+// Manual "Refresh" button — forces a fresh pull from Google Sheets
+async function forceRefreshData(){
+  const btn=document.getElementById('refreshDataBtn');
+  if(btn){btn.disabled=true;btn.textContent='🔄 Refreshing...';}
+  await fetchAndApplyFreshData(false);
+  if(btn){btn.disabled=false;btn.textContent='🔄 Refresh';}
 }
 
 // =============================================
