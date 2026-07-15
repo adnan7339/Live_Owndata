@@ -9,10 +9,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-<!-- QR/Barcode Scanner -->
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<!-- Tesseract OCR -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 <!-- Export Libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -671,40 +667,6 @@ td:nth-child(2){font-family:monospace;color:var(--navy-light);}
   </div>
 </div>
 
-<!-- ===== SCANNER MODAL ===== -->
-<div class="modal" id="scannerModal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>📷 Scan Barcode/QR</h3>
-      <button class="btn-close" onclick="stopScanner()">×</button>
-    </div>
-    <div id="reader"></div>
-    <div class="modal-info">📱 Position barcode/QR code within the frame</div>
-  </div>
-</div>
-
-<!-- ===== OCR MODAL ===== -->
-<div class="modal" id="ocrModal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>📸 Extract CNIC from Photo</h3>
-      <button class="btn-close" onclick="stopOCR()">×</button>
-    </div>
-    <input type="file" id="imageInput" accept="image/*" capture="environment" style="display:none;" onchange="processImage(event)">
-    <div class="ocr-input" onclick="document.getElementById('imageInput').click()">
-      <p style="font-size:3rem;margin-bottom:15px;">📸</p>
-      <p style="font-weight:600;font-size:1.1rem;margin-bottom:8px;">Take Photo or Upload Image</p>
-      <p style="font-size:0.9rem;color:var(--text-light);">Click to capture CNIC card</p>
-    </div>
-    <img id="ocrPreview" alt="Preview">
-    <div class="ocr-progress" id="ocrProgress">
-      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-      <p class="progress-text" id="progressText">Processing...</p>
-    </div>
-    <div class="modal-info">💡 Make sure CNIC number is clearly visible and well-lit</div>
-  </div>
-</div>
-
 <!-- ===== ADMIN PANEL MODAL ===== -->
 <div class="admin-modal" id="adminModal">
   <div class="admin-panel">
@@ -814,8 +776,16 @@ td:nth-child(2){font-family:monospace;color:var(--navy-light);}
 
       <!-- ACTIVITY LOG TAB -->
       <div class="tab-panel" id="tab-activity">
-        <div class="section-title">📋 Recent Activity <span id="logCountBadge">0 events</span></div>
-        <div style="display:flex;justify-content:flex-end;margin-bottom:15px;">
+        <div id="syncStatusBar" style="display:none;padding:10px 14px;border-radius:10px;margin-bottom:16px;font-size:0.82rem;font-weight:600;"></div>
+
+        <div class="section-title">💻 Logged-in Devices / PCs <span id="deviceCountBadge">0 devices</span></div>
+        <div id="devicesList" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-bottom:24px;">
+          <div style="text-align:center;padding:20px;color:#475569;grid-column:1/-1;">No device data yet</div>
+        </div>
+
+        <div class="section-title">📋 Recent Activity (All PCs) <span id="logCountBadge">0 events</span></div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:15px;">
+          <button onclick="renderActivity()" style="padding:8px 16px;background:rgba(0,61,130,0.2);color:#93c5fd;border:1px solid rgba(0,61,130,0.3);border-radius:8px;font-size:0.8rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.3s;">🔄 Refresh</button>
           <button onclick="clearActivityLog()" style="padding:8px 16px;background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3);border-radius:8px;font-size:0.8rem;font-weight:700;cursor:pointer;font-family:inherit;transition:all 0.3s;">🗑️ Clear Log</button>
         </div>
         <div class="log-list" id="activityLog">
@@ -892,13 +862,6 @@ td:nth-child(2){font-family:monospace;color:var(--navy-light);}
         <span id="btnText">🔍 Search</span>
       </button>
     </div>
-    <div class="tools-grid">
-      <button class="tool-btn" onclick="startScanner()">📷 Scan Barcode/QR</button>
-      <button class="tool-btn" onclick="startOCR()">📸 Extract from Photo</button>
-      <button class="tool-btn voice-btn" id="voiceBtn" onclick="startVoice()">
-        <span id="voiceIcon">🎤</span><span id="voiceText">Voice Search</span>
-      </button>
-    </div>
   </div>
 
   <div class="card">
@@ -936,6 +899,44 @@ td:nth-child(2){font-family:monospace;color:var(--navy-light);}
 // =============================================
 const SHEET_ID = "1WxFeeRY5X8KaMAmZjogReKFHZaWi8We3";
 const SHEET_NAME = "Sheet1";
+
+// =============================================
+// CENTRAL ACTIVITY LOG API (Google Apps Script Web App)
+// Paste your deployed Web App URL here to enable
+// cross-PC activity + "who is logged in where" for Admin.
+// See DEPLOY_INSTRUCTIONS.md / activity-log-backend.gs
+// If left blank, the app falls back to this-PC-only logs.
+// =============================================
+const LOG_API_URL = ""; // e.g. "https://script.google.com/macros/s/AKfycb.../exec"
+
+// =============================================
+// DEVICE FINGERPRINT (identifies "which PC" per browser)
+// =============================================
+function getDeviceId(){
+  let id = localStorage.getItem('acag_device_id');
+  if(!id){
+    id = 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,8);
+    localStorage.setItem('acag_device_id', id);
+  }
+  return id;
+}
+function getDeviceLabel(){
+  const ua = navigator.userAgent;
+  let os = 'Unknown OS';
+  if(/Windows/i.test(ua)) os='Windows';
+  else if(/Mac OS X/i.test(ua)) os='macOS';
+  else if(/Android/i.test(ua)) os='Android';
+  else if(/iPhone|iPad|iOS/i.test(ua)) os='iOS';
+  else if(/Linux/i.test(ua)) os='Linux';
+  let browser = 'Browser';
+  if(/Edg\//i.test(ua)) browser='Edge';
+  else if(/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) browser='Chrome';
+  else if(/Firefox\//i.test(ua)) browser='Firefox';
+  else if(/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) browser='Safari';
+  return `${os} · ${browser} · ${screen.width}x${screen.height}`;
+}
+const DEVICE_ID = getDeviceId();
+const DEVICE_LABEL = getDeviceLabel();
 
 // =============================================
 // LOCAL DATA CACHE (IndexedDB) — avoids reconnecting
@@ -1037,12 +1038,42 @@ function saveActivityLog(log){
 let ACTIVITY_LOG = loadActivityLog();
 
 function logActivity(icon, message){
-  ACTIVITY_LOG.unshift({
+  const entry = {
     icon, message,
     time: new Date().toLocaleString(),
-    ts: Date.now()
-  });
+    ts: Date.now(),
+    user: currentUser || '(not logged in)',
+    role: currentUserRole || '-',
+    device: DEVICE_LABEL,
+    deviceId: DEVICE_ID
+  };
+  // Always keep a local copy (works offline / no backend configured)
+  ACTIVITY_LOG.unshift(entry);
   saveActivityLog(ACTIVITY_LOG);
+  // Push to the shared backend so Admin sees activity from every PC
+  syncActivityToServer(entry);
+}
+
+function syncActivityToServer(entry){
+  if(!LOG_API_URL) return; // no backend configured yet
+  try{
+    // text/plain avoids a CORS preflight so Apps Script receives it reliably
+    fetch(LOG_API_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(entry)
+    }).catch(()=>{ /* offline / blocked — local log still saved */ });
+  }catch(e){ /* ignore */ }
+}
+
+async function fetchServerActivity(){
+  if(!LOG_API_URL) return null;
+  try{
+    const res = await fetch(LOG_API_URL + '?action=logs', {method:'GET'});
+    if(!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data) ? data : null;
+  }catch(e){ return null; }
 }
 
 // =============================================
@@ -1053,8 +1084,6 @@ let ready = false;
 let currentUser = null;
 let currentUserRole = null;
 let currentResults = [];
-let html5QrCode = null;
-let recognition = null;
 let resetPwTarget = null;
 
 // =============================================
@@ -1400,25 +1429,85 @@ function removeDnsBlock(index){
 }
 
 // --- ACTIVITY ---
-function renderActivity(){
-  ACTIVITY_LOG = loadActivityLog();
-  document.getElementById('logCountBadge').textContent = ACTIVITY_LOG.length+' events';
+async function renderActivity(){
+  if(currentUserRole!=='admin'){return;} // admin-only view, per design
+  const statusBar = document.getElementById('syncStatusBar');
   const list = document.getElementById('activityLog');
-  if(ACTIVITY_LOG.length===0){
+  list.innerHTML='<div style="text-align:center;padding:30px;color:#475569;">Loading…</div>';
+
+  let entries = loadActivityLog(); // local fallback
+  let sourceIsServer = false;
+
+  if(LOG_API_URL){
+    const serverLogs = await fetchServerActivity();
+    if(serverLogs){
+      entries = serverLogs.sort((a,b)=>(b.ts||0)-(a.ts||0));
+      sourceIsServer = true;
+    }
+  }
+
+  // Status bar
+  statusBar.style.display='block';
+  if(!LOG_API_URL){
+    statusBar.style.background='rgba(245,158,11,0.15)';
+    statusBar.style.color='#fbbf24';
+    statusBar.style.border='1px solid rgba(245,158,11,0.3)';
+    statusBar.innerHTML='⚠️ Central log backend not configured — showing activity from <strong>this PC only</strong>. See DEPLOY_INSTRUCTIONS to enable all-PC visibility.';
+  }else if(sourceIsServer){
+    statusBar.style.background='rgba(16,185,129,0.15)';
+    statusBar.style.color='#6ee7b7';
+    statusBar.style.border='1px solid rgba(16,185,129,0.3)';
+    statusBar.innerHTML='✅ Connected to central log — showing activity from <strong>all PCs</strong>.';
+  }else{
+    statusBar.style.background='rgba(239,68,68,0.15)';
+    statusBar.style.color='#f87171';
+    statusBar.style.border='1px solid rgba(239,68,68,0.3)';
+    statusBar.innerHTML='❌ Could not reach central log server — showing local (this PC) activity only.';
+  }
+
+  // Devices panel
+  const devMap = new Map();
+  entries.forEach(e=>{
+    if(!e.deviceId) return;
+    const prev = devMap.get(e.deviceId);
+    if(!prev || (e.ts||0) > (prev.ts||0)){
+      devMap.set(e.deviceId, {device:e.device||'Unknown device', user:e.user||'-', role:e.role||'-', ts:e.ts||0, time:e.time||''});
+    }
+  });
+  const devicesList = document.getElementById('devicesList');
+  document.getElementById('deviceCountBadge').textContent = devMap.size+' devices';
+  if(devMap.size===0){
+    devicesList.innerHTML='<div style="text-align:center;padding:20px;color:#475569;grid-column:1/-1;">No device data yet</div>';
+  }else{
+    devicesList.innerHTML = Array.from(devMap.values()).sort((a,b)=>b.ts-a.ts).map(d=>`
+      <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;">
+        <div style="color:#e2e8f0;font-weight:700;font-size:0.9rem;margin-bottom:4px;">💻 ${d.device}</div>
+        <div style="color:#a78bfa;font-size:0.82rem;margin-bottom:2px;">👤 ${d.user} (${d.role})</div>
+        <div style="color:#64748b;font-size:0.75rem;">Last active: ${d.time}</div>
+      </div>
+    `).join('');
+  }
+
+  // Activity list
+  document.getElementById('logCountBadge').textContent = entries.length+' events';
+  if(entries.length===0){
     list.innerHTML='<div style="text-align:center;padding:40px;color:#475569;">No activity yet</div>';
     return;
   }
-  list.innerHTML = ACTIVITY_LOG.map(e=>`
+  list.innerHTML = entries.map(e=>`
     <div class="log-item">
-      <span class="log-icon">${e.icon}</span>
-      <span class="log-text">${e.message}</span>
+      <span class="log-icon">${e.icon||'•'}</span>
+      <span class="log-text">${e.message}${e.device?` <span style="color:#64748b;font-size:0.75rem;">— 💻 ${e.device}</span>`:''}</span>
       <span class="log-time">${e.time}</span>
     </div>
   `).join('');
 }
 
 function clearActivityLog(){
-  if(!confirm('Clear all activity logs?')) return;
+  const msg = LOG_API_URL
+    ? 'Clear activity logs? This clears the local copy on this PC. The shared central log (all PCs) is not deleted from here for safety.'
+    : 'Clear all activity logs on this PC?';
+  if(!confirm(msg)) return;
   ACTIVITY_LOG=[];
   saveActivityLog([]);
   renderActivity();
@@ -1435,108 +1524,6 @@ function exportUserReport(){
   XLSX.utils.book_append_sheet(wb,ws,'Users');
   XLSX.writeFile(wb,`ACAG_User_Report_${Date.now()}.xlsx`);
   logActivity('📤',`Admin <strong>${currentUser}</strong> exported user report`);
-}
-
-// =============================================
-// SCANNER
-// =============================================
-function startScanner(){
-  document.getElementById('scannerModal').classList.add('active');
-  html5QrCode=new Html5Qrcode("reader");
-  Html5Qrcode.getCameras().then(cameras=>{
-    if(cameras&&cameras.length){
-      html5QrCode.start({facingMode:"environment"},{fps:10,qrbox:{width:250,height:250}},onScanSuccess,()=>{})
-      .catch(()=>{alert("Unable to start camera.");stopScanner();});
-    }else{alert("No camera found.");stopScanner();}
-  }).catch(()=>{alert("Camera permission denied.");stopScanner();});
-}
-function stopScanner(){
-  if(html5QrCode){
-    html5QrCode.stop().then(()=>{document.getElementById('scannerModal').classList.remove('active');})
-    .catch(()=>{document.getElementById('scannerModal').classList.remove('active');});
-  }else{document.getElementById('scannerModal').classList.remove('active');}
-}
-function onScanSuccess(decodedText){
-  const patterns=[/\d{13}/,/\d{5}[\s-]?\d{7}[\s-]?\d/,/(\d{5}).*?(\d{7}).*?(\d)/];
-  let cnicMatch=null;
-  for(let p of patterns){cnicMatch=decodedText.match(p);if(cnicMatch)break;}
-  if(cnicMatch){
-    const cnic=cnicMatch[0].replace(/\D/g,'');
-    if(cnic.length>=13){fillCNIC(cnic.slice(0,13));stopScanner();setTimeout(()=>search(),500);}
-  }
-}
-
-// =============================================
-// OCR
-// =============================================
-function startOCR(){
-  document.getElementById('ocrModal').classList.add('active');
-  document.getElementById('ocrPreview').style.display='none';
-  document.getElementById('ocrProgress').style.display='none';
-}
-function stopOCR(){
-  document.getElementById('ocrModal').classList.remove('active');
-  document.getElementById('imageInput').value='';
-}
-async function processImage(event){
-  const file=event.target.files[0];if(!file)return;
-  const preview=document.getElementById('ocrPreview');
-  const progress=document.getElementById('ocrProgress');
-  const fill=document.getElementById('progressFill');
-  const text=document.getElementById('progressText');
-  preview.src=URL.createObjectURL(file);preview.style.display='block';progress.style.display='block';
-  try{
-    text.textContent='Processing image...';fill.style.width='10%';
-    const result=await Tesseract.recognize(file,'eng',{logger:m=>{
-      if(m.status==='recognizing text'){const pct=Math.round(m.progress*90)+10;fill.style.width=pct+'%';text.textContent=`Processing... ${pct}%`;}
-    }});
-    fill.style.width='100%';text.textContent='Extracting CNIC...';
-    const extractedText=result.data.text;
-    const patterns=[/\d{5}[\s-]?\d{7}[\s-]?\d/g,/\d{13}/g];
-    let cnic=null;
-    for(let p of patterns){
-      const matches=extractedText.match(p);
-      if(matches){cnic=matches[0].replace(/\D/g,'');if(cnic.length>=13){cnic=cnic.slice(0,13);break;}}
-    }
-    if(cnic&&cnic.length===13){
-      fill.style.width='100%';text.textContent='✓ CNIC Found!';
-      setTimeout(()=>{fillCNIC(cnic);stopOCR();setTimeout(()=>search(),500);},1000);
-    }else{text.textContent='❌ No valid CNIC found. Please try again.';fill.style.width='0%';}
-  }catch(err){text.textContent='❌ Processing failed. Please try again.';fill.style.width='0%';}
-}
-
-// =============================================
-// VOICE
-// =============================================
-function startVoice(){
-  if(!('webkitSpeechRecognition' in window)&&!('SpeechRecognition' in window)){
-    alert('Voice recognition not supported.\n\nSupported browsers:\n• Chrome\n• Edge\n• Safari (iOS 14.5+)');return;
-  }
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  recognition=new SR();recognition.lang='en-US';recognition.continuous=false;recognition.interimResults=false;
-  const voiceBtn=document.getElementById('voiceBtn');
-  const voiceIcon=document.getElementById('voiceIcon');
-  const voiceText=document.getElementById('voiceText');
-  voiceBtn.classList.add('listening');voiceIcon.textContent='🎙️';voiceText.textContent='Listening...';
-  recognition.onresult=(event)=>{
-    const transcript=event.results[0][0].transcript.toLowerCase();
-    const digitMap={'zero':'0','one':'1','two':'2','three':'3','four':'4','five':'5','six':'6','seven':'7','eight':'8','nine':'9','to':'2','for':'4','too':'2'};
-    let digits=transcript.replace(/[^\d]/g,'');
-    const words=transcript.split(/\s+/);
-    words.forEach(w=>{if(digitMap[w])digits+=digitMap[w];});
-    if(digits.length>=13){fillCNIC(digits.slice(0,13));setTimeout(()=>search(),500);}
-    else if(digits.length>0){alert(`Captured ${digits.length} digits. Please speak all 13 digits clearly.`);}
-    voiceBtn.classList.remove('listening');voiceIcon.textContent='🎤';voiceText.textContent='Voice Search';
-  };
-  recognition.onerror=(event)=>{
-    voiceBtn.classList.remove('listening');voiceIcon.textContent='🎤';voiceText.textContent='Voice Search';
-    let msg='Voice recognition failed.';
-    if(event.error==='no-speech')msg='No speech detected.';
-    else if(event.error==='not-allowed')msg='Microphone permission denied.';
-    alert(msg);
-  };
-  recognition.onend=()=>{voiceBtn.classList.remove('listening');voiceIcon.textContent='🎤';voiceText.textContent='Voice Search';};
-  recognition.start();
 }
 
 // =============================================
