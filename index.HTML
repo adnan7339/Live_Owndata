@@ -629,9 +629,96 @@ td:nth-child(2){font-family:monospace;color:var(--navy-light);}
 ::-webkit-scrollbar-track{background:var(--bg-light);}
 ::-webkit-scrollbar-thumb{background:linear-gradient(135deg,var(--navy),var(--gold));border-radius:5px;}
 ::-webkit-scrollbar-thumb:hover{background:linear-gradient(135deg,var(--gold),var(--navy));}
+
+/* Site Nav */
+.site-nav{
+  background:linear-gradient(135deg,var(--navy-dark) 0%,var(--navy) 100%);
+  border-bottom:1px solid rgba(197,157,95,0.3);
+  box-shadow:0 4px 20px rgba(0,0,0,0.3);
+  position:sticky;
+  top:0;
+  z-index:600;
+  margin:-20px -20px 20px;
+}
+.site-nav-inner{
+  max-width:1200px;
+  margin:0 auto;
+  padding:14px 20px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.site-nav-inner a{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 16px;
+  border-radius:10px;
+  color:rgba(255,255,255,0.75);
+  text-decoration:none;
+  font-size:0.9rem;
+  font-weight:700;
+  transition:all 0.2s ease;
+}
+.site-nav-inner a:hover{
+  background:rgba(255,255,255,0.08);
+  color:#fff;
+}
+.site-nav-inner a.active{
+  background:linear-gradient(135deg,var(--gold),var(--gold-light));
+  color:var(--navy-dark);
+  box-shadow:0 4px 12px rgba(197,157,95,0.4);
+}
+.nav-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
+
+/* Result Modal */
+.result-modal{
+  display:none;position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.75);z-index:9999;
+  justify-content:center;align-items:center;padding:20px;
+}
+.result-modal.active{display:flex;}
+.result-modal-box{
+  background:white;border-radius:20px;max-width:650px;width:100%;
+  max-height:88vh;display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:slideUp 0.4s ease;
+}
+.result-modal-header{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  padding:22px 26px;border-bottom:2px solid var(--border);
+  background:linear-gradient(135deg,rgba(0,61,130,0.05),rgba(197,157,95,0.05));
+}
+.result-modal-header h3{color:var(--navy);font-size:1.3rem;font-weight:800;margin-bottom:4px;}
+.result-modal-header p{color:var(--text-light);font-size:0.85rem;}
+.result-modal .btn-close{
+  background:var(--danger);color:white;border:none;width:34px;height:34px;
+  border-radius:50%;cursor:pointer;font-size:1rem;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;transition:all 0.3s;
+}
+.result-modal .btn-close:hover{transform:scale(1.1);}
+.result-modal-body{padding:20px 26px;overflow-y:auto;}
+.result-modal-body .table-wrapper table{width:100%;border-collapse:collapse;}
+.result-modal-body th,.result-modal-body td{
+  text-align:left;padding:12px 14px;border-bottom:1px solid var(--border);font-size:0.9rem;
+}
+.result-modal-body th{color:var(--navy);font-weight:700;width:32%;background:var(--bg-light);}
+.result-modal-body td{font-weight:600;color:var(--text-dark);}
+.result-modal-footer{
+  display:flex;flex-wrap:wrap;gap:10px;padding:18px 26px;border-top:1px solid var(--border);
+}
+.result-modal-footer .action-btn{flex:1;min-width:110px;justify-content:center;}
 </style>
 </head>
 <body>
+
+<nav class="site-nav" aria-label="Site navigation">
+    <div class="site-nav-inner">
+      <a href="https://acag.punjab.gov.pk/Layouts/Registration.aspx?LoanCategoryID=0" class="active" aria-current="page"><span class="nav-dot"></span>ACAG Registration</a>
+      <a href="https://acag.punjab.gov.pk/Layouts/LoanCategory.aspx">ACMC Registration</a>
+      <a href="https://pmybls-black.vercel.app/index.htm">PM Youth List</a>
+      <a href="https://live-owndata.vercel.app/">ACAG List</a>
+    </div>
+  </nav>
 
 <!-- ===== LOGIN ===== -->
 <div class="login-container" id="loginContainer">
@@ -811,6 +898,32 @@ td:nth-child(2){font-family:monospace;color:var(--navy-light);}
 </div>
 
 <!-- ===== MAIN APP ===== -->
+<div class="result-modal" id="resultModal">
+  <div class="result-modal-box">
+    <div class="result-modal-header">
+      <div>
+        <h3>🔍 Search Results</h3>
+        <p id="resultModalSubtitle">0 record(s) found</p>
+      </div>
+      <button class="btn-close" onclick="closeResultPopup()">✕</button>
+    </div>
+    <div class="result-modal-body">
+      <div class="table-wrapper">
+        <table>
+          <tbody id="resultModalTable"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="result-modal-footer">
+      <button class="action-btn" onclick="copyResults()">📋 Copy</button>
+      <button class="action-btn" onclick="exportExcel()">📊 Excel</button>
+      <button class="action-btn" onclick="exportPDF()">📄 PDF</button>
+      <button class="action-btn" onclick="printResults()">🖨️ Print</button>
+      <button class="action-btn" onclick="closeResultPopup()">✅ Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="container" id="mainApp">
 
   <div class="user-header">
@@ -1686,6 +1799,7 @@ function search(){
           currentResults=results;showResults(results);
           count.textContent=`${results.length} record(s) found in ${time}ms`;
           logActivity('✅',`<strong>${currentUser}</strong> searched CNIC: ${input} — ${results.length} result(s) found`);
+          openResultModal(results,time);
         }
       }catch(err){
         btn.disabled=false;btnText.textContent="🔍 Search";
@@ -1699,6 +1813,24 @@ function search(){
 // =============================================
 // DISPLAY
 // =============================================
+function openResultModal(results,elapsedMs){
+  const subtitle=document.getElementById('resultModalSubtitle');
+  const tbody=document.getElementById('resultModalTable');
+  subtitle.textContent=`${results.length} record(s) found${typeof elapsedMs==='number'?` in ${elapsedMs}ms`:''}`;
+  const fields=['Sr No','CNIC','Name','Contact','Branch Name','Branch Code','Batch'];
+  let html='<tr><th>Field</th>'+results.map((_,i)=>`<th>Result ${i+1}</th>`).join('')+'</tr>';
+  fields.forEach((label,colIndex)=>{
+    html+=`<tr><td><strong>${label}</strong></td>`;
+    results.forEach(r=>{html+=`<td>${r[colIndex]||'-'}</td>`;});
+    html+='</tr>';
+  });
+  tbody.innerHTML=html;
+  document.getElementById('resultModal').classList.add('active');
+}
+function closeResultPopup(){
+  document.getElementById('resultModal').classList.remove('active');
+}
+
 function showLoading(){
   document.getElementById("results").innerHTML=`<tr><td colspan="7" class="state"><div class="loading-icon"></div><h3>Searching Database...</h3><p>Please wait</p></td></tr>`;
 }
