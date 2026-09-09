@@ -1108,20 +1108,24 @@ async function setCachedSheetData(data){
 }
 
 // =============================================
-// FORCE LOGOUT ON EVERY PAGE VISIT/RELOAD
+// USER STORE (persisted to localStorage)
 // =============================================
-(function forceLogoutOnLoad(){
-  // Clear any active session/login data (adjust keys to match your app)
-  localStorage.removeItem('acag_session');      // current session token, if used
-  localStorage.removeItem('acag_current_user'); // currently logged-in user, if used
-  sessionStorage.clear();                        // clear any session-only data too
+function loadUsers(){
+  const stored = localStorage.getItem('acag_users_v2');
+  if(stored) return JSON.parse(stored);
+  // Default users
+  const defaults = [
+    {username:'admin', password:'acag2026', role:'admin', blocked:false, createdAt: new Date().toISOString()},
+    {username:'user',  password:'user1122', role:'user',  blocked:false, createdAt: new Date().toISOString()}
+  ];
+  saveUsers(defaults);
+  return defaults;
+}
+function saveUsers(users){
+  localStorage.setItem('acag_users_v2', JSON.stringify(users));
+}
+let USERS = loadUsers();
 
-  // If user is on a protected/dashboard page, redirect to login
-  // Uncomment and adjust the path if needed:
-  // if (!window.location.pathname.includes('login')) {
-  //   window.location.href = 'login.html';
-  // }
-})();
 // =============================================
 // DNS BLOCK STORE
 // =============================================
