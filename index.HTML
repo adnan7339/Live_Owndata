@@ -1015,13 +1015,19 @@ const SHEET_ID = "1WxFeeRY5X8KaMAmZjogReKFHZaWi8We3";
 const SHEET_NAME = "Sheet1";
 
 // =============================================
-// CENTRAL ACTIVITY LOG API (Google Apps Script Web App)
-// Paste your deployed Web App URL here to enable
-// cross-PC activity + "who is logged in where" for Admin.
-// See DEPLOY_INSTRUCTIONS.md / activity-log-backend.gs
-// If left blank, the app falls back to this-PC-only logs.
+// CENTRAL BACKEND API (Google Apps Script Web App)
+// Paste your deployed Web App URL here to enable:
+//   - cross-PC activity log + "who is logged in where"
+//   - shared user accounts (same users on every PC)
+//   - forced logout on every device when a password is
+//     reset or a user is blocked/deleted
+// See users-backend.gs for the Apps Script code to deploy.
+// If left blank, the app falls back to this-PC-only users/logs
+// (old behaviour — each browser has its own separate user list).
 // =============================================
 const LOG_API_URL = ""; // e.g. "https://script.google.com/macros/s/AKfycb.../exec"
+const API_URL = LOG_API_URL; // same backend now also serves user accounts
+const SESSION_CHECK_INTERVAL = 20 * 1000; // how often each device re-checks its session (ms)
 
 // =============================================
 // DEVICE FINGERPRINT (identifies "which PC" per browser)
@@ -1108,15 +1114,21 @@ async function setCachedSheetData(data){
 }
 
 // =============================================
-// USER STORE (persisted to localStorage)
+// USER STORE
+// Local copy is kept in localStorage purely as an
+// instant-render cache. Whenever a backend (API_URL) is
+// configured, that backend is the single source of truth —
+// every admin action (add/reset/block/delete) is written
+// there first, and every device polls it to detect changes
+// (see startSessionWatcher / checkSessionValidity below).
 // =============================================
 function loadUsers(){
   const stored = localStorage.getItem('acag_users_v2');
   if(stored) return JSON.parse(stored);
-  // Default users
+  // Default users (used until the first server sync, or forever if no backend is configured)
   const defaults = [
-    {username:'admin', password:'acag2026', role:'admin', blocked:false, createdAt: new Date().toISOString()},
-    {username:'user1',  password:'user1122', role:'user',  blocked:false, createdAt: new Date().toISOString()}
+    {username:'admin', password:'acag2026', role:'admin', blocked:false, passwordChangedAt:new Date().toISOString(), createdAt: new Date().toISOString()},
+    {username:'user1',  password:'user1122', role:'user',  blocked:false, passwordChangedAt:new Date().toISOString(), createdAt: new Date().toISOString()}
   ];
   saveUsers(defaults);
   return defaults;
@@ -1125,6 +1137,46 @@ function saveUsers(users){
   localStorage.setItem('acag_users_v2', JSON.stringify(users));
 }
 let USERS = loadUsers();
+
+// ---- Server sync helpers ----
+async function fetchUsersFromServer(){
+  if(!API_URL) return null;
+  try{
+    const res = await fetch(API_URL + '?action=users', {method:'GET'});
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(!Array.isArray(data)) return null;
+    USERS = data;
+    saveUsers(USERS);
+    return USERS;
+  }catch(e){ return null; }
+}
+
+// Fire-and-await a user-management action on the backend.
+// Returns the parsed JSON response, or {ok:false, offline:true} if unreachable.
+async function callUsersApi(action, payload){
+  if(!API_URL) return {ok:false, offline:true};
+  try{
+    const res = await fetch(API_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'}, // avoids CORS preflight, matches Apps Script setup
+      body: JSON.stringify({action, ...payload})
+    });
+    if(!res.ok) return {ok:false, offline:true};
+    return await res.json();
+  }catch(e){ return {ok:false, offline:true}; }
+}
+
+// Lightweight per-user check used by every device's session watcher.
+// Only pulls the one row it needs instead of the whole user list.
+async function checkUserOnServer(username){
+  if(!API_URL) return null;
+  try{
+    const res = await fetch(API_URL + '?action=checkuser&username=' + encodeURIComponent(username), {method:'GET'});
+    if(!res.ok) return null;
+    return await res.json();
+  }catch(e){ return null; }
+}
 
 // =============================================
 // DNS BLOCK STORE
@@ -1202,33 +1254,69 @@ let resetPwTarget = null;
 // =============================================
 // INIT
 // =============================================
-window.onload = () => {
+window.onload = async () => {
   const persistentUser = localStorage.getItem('acag_user_persistent');
-  if(persistentUser){
-    const u = USERS.find(x=>x.username===persistentUser);
-    if(u && !u.blocked){
-      currentUser = persistentUser;
-      currentUserRole = u.role;
-      showApp();
-      return;
-    }else{
-      localStorage.removeItem('acag_user_persistent');
-    }
-  }
   const sessionUser = sessionStorage.getItem('acag_user');
-  if(sessionUser){
-    const u = USERS.find(x=>x.username===sessionUser);
+  const savedUser = persistentUser || sessionUser;
+
+  if(savedUser){
+    USERS = loadUsers();
+    let u = USERS.find(x=>x.username===savedUser);
+
+    // If a backend is configured, re-validate this saved session against it
+    // BEFORE trusting it — catches a password reset / block / delete that
+    // happened on another device while this one was closed.
+    if(API_URL){
+      const check = await checkUserOnServer(savedUser);
+      if(check && check.exists){
+        if(check.blocked){ clearSavedSession(); showLoginWithNotice('🔒 This account has been blocked. Contact an administrator.'); return; }
+        const savedPwts = localStorage.getItem('acag_pwts_'+savedUser) || sessionStorage.getItem('acag_pwts_'+savedUser);
+        if(savedPwts && check.passwordChangedAt && String(savedPwts)!==String(check.passwordChangedAt)){
+          clearSavedSession();
+          showLoginWithNotice('🔑 Your password was changed. Please log in again with the new password.');
+          return;
+        }
+        // sync role/blocked in case they changed
+        if(u) u.role = check.role || u.role;
+      }else if(check && check.exists===false){
+        clearSavedSession();
+        showLoginWithNotice('❌ This account no longer exists.');
+        return;
+      }
+      // if check is null (offline/unreachable), fall through and allow the
+      // cached session so the app still works without internet.
+    }
+
     if(u && !u.blocked){
-      currentUser = sessionUser;
+      currentUser = savedUser;
       currentUserRole = u.role;
       showApp();
+      startSessionWatcher();
       return;
     }else{
-      sessionStorage.removeItem('acag_user');
+      clearSavedSession();
     }
   }
   document.getElementById('username').focus();
 };
+
+function clearSavedSession(){
+  const savedUser = localStorage.getItem('acag_user_persistent') || sessionStorage.getItem('acag_user');
+  if(savedUser){
+    localStorage.removeItem('acag_pwts_'+savedUser);
+    sessionStorage.removeItem('acag_pwts_'+savedUser);
+  }
+  localStorage.removeItem('acag_user_persistent');
+  sessionStorage.removeItem('acag_user');
+}
+
+function showLoginWithNotice(msg){
+  document.getElementById('loginContainer').classList.remove('hidden');
+  document.getElementById('mainApp').classList.remove('active');
+  const errorEl = document.getElementById('loginError');
+  errorEl.textContent = msg;
+  errorEl.classList.add('show');
+}
 
 // =============================================
 // LOGIN / LOGOUT
@@ -1240,7 +1328,7 @@ function togglePassword(){
   else{input.type='password';icon.textContent='👁️';}
 }
 
-function login(){
+async function login(){
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
   const rememberMe = document.getElementById('rememberMe').checked;
@@ -1265,22 +1353,61 @@ function login(){
     errorEl.classList.add('show');return;
   }
 
-  USERS = loadUsers();
-  const u = USERS.find(x=>x.username===username);
-  if(!u){
-    logActivity('❌',`Failed login attempt: unknown user <strong>${username}</strong>`);
-    errorEl.textContent='❌ Invalid username or password';
-    errorEl.classList.add('show');return;
-  }
-  if(u.blocked){
-    logActivity('🔒',`Blocked user tried to login: <strong>${username}</strong>`);
-    errorEl.textContent='🔒 This account has been blocked. Contact an administrator.';
-    errorEl.classList.add('show');return;
-  }
-  if(u.password!==password){
-    logActivity('⚠️',`Wrong password for <strong>${username}</strong>`);
-    errorEl.textContent='❌ Invalid username or password';
-    errorEl.classList.add('show');return;
+  btnText.textContent='⏳ Checking...';
+
+  let u, passwordChangedAt;
+
+  if(API_URL){
+    // Server is the source of truth: this is what makes an admin's password
+    // reset / block / new-user instantly apply on EVERY device.
+    const result = await callUsersApi('login', {username, password});
+    if(result.offline){
+      // backend unreachable — fall back to local cache so the app still works
+      USERS = loadUsers();
+      u = USERS.find(x=>x.username===username);
+      if(!u || u.blocked || u.password!==password){
+        btnText.textContent='Login';
+        logActivity('⚠️',`Login failed for <strong>${username}</strong> (offline, using local cache)`);
+        errorEl.textContent='❌ Invalid username or password';
+        errorEl.classList.add('show');return;
+      }
+      passwordChangedAt = u.passwordChangedAt;
+    }else if(!result.ok){
+      btnText.textContent='Login';
+      logActivity(result.reason==='blocked'?'🔒':'❌',`Login failed for <strong>${username}</strong> (${result.reason||'invalid'})`);
+      errorEl.textContent = result.reason==='blocked'
+        ? '🔒 This account has been blocked. Contact an administrator.'
+        : '❌ Invalid username or password';
+      errorEl.classList.add('show');return;
+    }else{
+      u = {username, role: result.role};
+      passwordChangedAt = result.passwordChangedAt;
+      // refresh local cache in the background so the admin panel/users list stays current
+      fetchUsersFromServer();
+    }
+  }else{
+    // No backend configured — original local-only behaviour
+    USERS = loadUsers();
+    u = USERS.find(x=>x.username===username);
+    if(!u){
+      logActivity('❌',`Failed login attempt: unknown user <strong>${username}</strong>`);
+      btnText.textContent='Login';
+      errorEl.textContent='❌ Invalid username or password';
+      errorEl.classList.add('show');return;
+    }
+    if(u.blocked){
+      logActivity('🔒',`Blocked user tried to login: <strong>${username}</strong>`);
+      btnText.textContent='Login';
+      errorEl.textContent='🔒 This account has been blocked. Contact an administrator.';
+      errorEl.classList.add('show');return;
+    }
+    if(u.password!==password){
+      logActivity('⚠️',`Wrong password for <strong>${username}</strong>`);
+      btnText.textContent='Login';
+      errorEl.textContent='❌ Invalid username or password';
+      errorEl.classList.add('show');return;
+    }
+    passwordChangedAt = u.passwordChangedAt;
   }
 
   btnText.textContent='✓ Logging in...';
@@ -1288,24 +1415,82 @@ function login(){
   setTimeout(()=>{
     currentUser=username;
     currentUserRole=u.role;
-    if(rememberMe) localStorage.setItem('acag_user_persistent',username);
-    else sessionStorage.setItem('acag_user',username);
+    if(rememberMe){
+      localStorage.setItem('acag_user_persistent',username);
+      if(passwordChangedAt) localStorage.setItem('acag_pwts_'+username, passwordChangedAt);
+    }else{
+      sessionStorage.setItem('acag_user',username);
+      if(passwordChangedAt) sessionStorage.setItem('acag_pwts_'+username, passwordChangedAt);
+    }
     showApp();
+    startSessionWatcher();
   },800);
 }
 
 function logout(){
   if(!confirm('Are you sure you want to logout?')) return;
   logActivity('🚪',`<strong>${currentUser}</strong> logged out`);
+  stopSessionWatcher();
+  clearSavedSession();
   currentUser=null;currentUserRole=null;
-  localStorage.removeItem('acag_user_persistent');
-  sessionStorage.removeItem('acag_user');
   document.getElementById('mainApp').classList.remove('active');
   document.getElementById('loginContainer').classList.remove('hidden');
   document.getElementById('username').value='';
   document.getElementById('password').value='';
   document.getElementById('loginBtnText').textContent='Login';
   document.getElementById('loginError').classList.remove('show');
+}
+
+// =============================================
+// SESSION WATCHER — the "force logout everywhere" feature.
+// While the app is open, each device quietly asks the backend
+// "has my account changed?" every SESSION_CHECK_INTERVAL ms.
+// If the admin has reset this user's password, or blocked/
+// deleted the account (from ANY device), this device is
+// signed out automatically on the next check.
+// =============================================
+let sessionWatcherTimer = null;
+
+function startSessionWatcher(){
+  stopSessionWatcher();
+  if(!API_URL || !currentUser) return; // nothing to watch without a backend
+  sessionWatcherTimer = setInterval(checkSessionValidity, SESSION_CHECK_INTERVAL);
+}
+function stopSessionWatcher(){
+  if(sessionWatcherTimer){ clearInterval(sessionWatcherTimer); sessionWatcherTimer=null; }
+}
+
+async function checkSessionValidity(){
+  if(!currentUser) return;
+  const check = await checkUserOnServer(currentUser);
+  if(!check) return; // offline/unreachable — don't log the user out just because of a network blip
+
+  if(check.exists===false){
+    forceLogout('❌ Your account no longer exists. Please contact an administrator.');
+    return;
+  }
+  if(check.blocked){
+    forceLogout('🔒 Your account has been blocked by an administrator.');
+    return;
+  }
+  const savedPwts = localStorage.getItem('acag_pwts_'+currentUser) || sessionStorage.getItem('acag_pwts_'+currentUser);
+  if(savedPwts && check.passwordChangedAt && String(savedPwts)!==String(check.passwordChangedAt)){
+    forceLogout('🔑 Your password was changed by an administrator. Please log in again with the new password.');
+    return;
+  }
+}
+
+function forceLogout(message){
+  stopSessionWatcher();
+  logActivity('🚪',`<strong>${currentUser}</strong> was force-logged-out (${message.replace(/^[^A-Za-z]*/,'')})`);
+  clearSavedSession();
+  currentUser=null;currentUserRole=null;
+  document.getElementById('mainApp').classList.remove('active');
+  document.getElementById('adminModal').classList.remove('active');
+  showLoginWithNotice(message);
+  document.getElementById('username').value='';
+  document.getElementById('password').value='';
+  document.getElementById('loginBtnText').textContent='Login';
 }
 
 async function showApp(){
@@ -1406,7 +1591,8 @@ function renderOverview(){
 }
 
 // --- USERS ---
-function renderUsers(){
+async function renderUsers(){
+  if(API_URL){ await fetchUsersFromServer(); } // pull latest before showing the list
   USERS = loadUsers();
   document.getElementById('userCountBadge').textContent = USERS.length+' users';
   const list = document.getElementById('userList');
@@ -1434,20 +1620,26 @@ function renderUsers(){
   `).join('');
 }
 
-function toggleBlock(username, block){
-  if(block && !confirm(`Block user "${username}"? They will be unable to login.`)) return;
+async function toggleBlock(username, block){
+  if(block && !confirm(`Block user "${username}"? They will be unable to login, and will be signed out of every device within ${SESSION_CHECK_INTERVAL/1000}s.`)) return;
+  if(API_URL){
+    const result = await callUsersApi('toggleBlock', {username, blocked: block});
+    if(result.offline){ alert('⚠️ Could not reach the server. This change was NOT applied on other devices.'); }
+  }
   USERS = loadUsers();
   const u = USERS.find(x=>x.username===username);
-  if(!u) return;
-  u.blocked = block;
-  saveUsers(USERS);
+  if(u){ u.blocked = block; saveUsers(USERS); }
   logActivity(block?'🔒':'🔓', `Admin <strong>${currentUser}</strong> ${block?'blocked':'unblocked'} user <strong>${username}</strong>`);
   renderUsers();
   renderOverview();
 }
 
-function deleteUser(username){
+async function deleteUser(username){
   if(!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+  if(API_URL){
+    const result = await callUsersApi('deleteUser', {username});
+    if(result.offline){ alert('⚠️ Could not reach the server. This change was NOT applied on other devices.'); }
+  }
   USERS = loadUsers();
   USERS = USERS.filter(u=>u.username!==username);
   saveUsers(USERS);
@@ -1456,14 +1648,20 @@ function deleteUser(username){
   renderOverview();
 }
 
-function addUser(){
+async function addUser(){
   const username = document.getElementById('newUsername').value.trim();
   const password = document.getElementById('newPassword').value.trim();
   const role = document.getElementById('newRole').value;
   if(!username||!password){alert('Please enter username and password.');return;}
   USERS = loadUsers();
   if(USERS.find(u=>u.username===username)){alert('Username already exists!');return;}
-  USERS.push({username, password, role, blocked:false, createdAt:new Date().toISOString()});
+  const now = new Date().toISOString();
+  if(API_URL){
+    const result = await callUsersApi('addUser', {username, password, role});
+    if(!result.offline && result.ok===false){alert('Username already exists on the server!');return;}
+    if(result.offline){ alert('⚠️ Could not reach the server. This user was only added locally and won\'t appear on other devices.'); }
+  }
+  USERS.push({username, password, role, blocked:false, passwordChangedAt:now, createdAt:now});
   saveUsers(USERS);
   logActivity('➕',`Admin <strong>${currentUser}</strong> added new user <strong>${username}</strong> (${role})`);
   document.getElementById('newUsername').value='';
@@ -1483,17 +1681,35 @@ function closeResetPw(){
   resetPwTarget=null;
   document.getElementById('resetPwModal').classList.remove('active');
 }
-function confirmResetPassword(){
+async function confirmResetPassword(){
   const newPw = document.getElementById('resetPwInput').value.trim();
   if(!newPw){alert('Please enter a new password.');return;}
+  const target = resetPwTarget;
+  let passwordChangedAt = new Date().toISOString();
+  let appliedOnServer = false;
+
+  if(API_URL){
+    const result = await callUsersApi('resetPassword', {username: target, newPassword: newPw});
+    if(result.offline){
+      alert('⚠️ Could not reach the server. The password was only changed locally on THIS device — other devices will keep using the old password until this device is back online.');
+    }else if(result.ok){
+      appliedOnServer = true;
+      passwordChangedAt = result.passwordChangedAt || passwordChangedAt;
+    }
+  }
+
   USERS = loadUsers();
-  const u = USERS.find(x=>x.username===resetPwTarget);
-  if(u) u.password = newPw;
+  const u = USERS.find(x=>x.username===target);
+  if(u){ u.password = newPw; u.passwordChangedAt = passwordChangedAt; }
   saveUsers(USERS);
-  logActivity('🔑',`Admin <strong>${currentUser}</strong> reset password for <strong>${resetPwTarget}</strong>`);
+  logActivity('🔑',`Admin <strong>${currentUser}</strong> reset password for <strong>${target}</strong>`);
   closeResetPw();
   renderUsers();
-  alert(`✅ Password for "${resetPwTarget}" has been updated.`);
+
+  const spread = appliedOnServer
+    ? `They will be logged out on all their devices within ${SESSION_CHECK_INTERVAL/1000} seconds and must log in again with the new password.`
+    : (API_URL ? '' : 'Note: no central backend is configured, so this only applies on this device — see users-backend.gs to enable it everywhere.');
+  alert(`✅ Password for "${target}" has been updated. ${spread}`);
 }
 
 // --- DNS ---
